@@ -1,0 +1,166 @@
+@startuml uml-paquetes
+' DevNet - Diagrama de paquetes y componentes CON INTERFACES
+' Entregable literal de Sprint 1 (lineamientos, 3.7 - Arquitectura de Software)
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam linetype ortho
+
+title Diagrama de paquetes con interfaces publicadas - com.codefactory.devnet
+
+package "shared" as SH #F4F4F4 {
+  interface AlmacenArchivos {
+    + subir(archivo, ruta) : UrlArchivo
+    + urlFirmada(ruta, duracion) : UrlArchivo
+    + eliminar(ruta) : void
+  }
+  interface RegistroAuditoria {
+    + registrar(EventoAuditoria) : void
+  }
+  class ManejadorGlobalErrores <<RestControllerAdvice>>
+  class FiltroTraceId <<Filter>>
+  class PaginaKeyset<T>
+}
+
+package "identity" as ID #FFF3E0 {
+  package "identity.domain" {
+    interface PuertoAutenticacion {
+      + usuarioActual() : UsuarioAutenticado
+      + tienePermiso(codigo) : boolean
+    }
+    interface PuertoSancion {
+      + suspender(usuarioId, motivo, dias) : void
+      + estaSuspendido(usuarioId) : boolean
+    }
+  }
+  package "identity.api" {}
+  package "identity.application" {}
+  package "identity.infrastructure" {}
+}
+
+package "profile" as PR #E8F5E9 {
+  package "profile.domain" {
+    interface PuertoPerfil {
+      + existeYEstaVerificado(usuarioId) : boolean
+      + resumen(usuarioId) : ResumenPerfil
+    }
+    interface PuertoReputacion {
+      + puntaje(usuarioId) : int
+      + acreditar(usuarioId, TipoEvento, referencia) : void
+    }
+    interface PuertoSeguimiento {
+      + sigue(seguidorId, seguidoId) : boolean
+    }
+  }
+  package "profile.api" {}
+  package "profile.application" {}
+  package "profile.infrastructure" {}
+}
+
+package "project" as PJ #E3F2FD {
+  package "project.domain" {
+    interface PuertoProyecto {
+      + esPropietario(proyectoId, usuarioId) : boolean
+      + colaboradoresActivos(proyectoId) : int
+    }
+  }
+  package "project.api" {}
+  package "project.application" {}
+  package "project.infrastructure" {}
+}
+
+package "discussion" as DI #E3F2FD {
+  package "discussion.domain" {
+    interface PuertoDiscusion {
+      + existe(discusionId) : boolean
+      + estaResuelta(discusionId) : boolean
+    }
+  }
+  package "discussion.api" {}
+  package "discussion.application" {}
+  package "discussion.infrastructure" {}
+}
+
+package "interaction" as IN #E3F2FD {
+  package "interaction.domain" {
+    interface PuertoComentario {
+      + autorDe(comentarioId) : UsuarioId
+      + ocultar(comentarioId, motivo) : void
+    }
+  }
+  package "interaction.api" {}
+  package "interaction.application" {}
+  package "interaction.infrastructure" {}
+}
+
+package "messaging" as ME #E3F2FD {
+  package "messaging.domain" {
+    interface PuertoConversacion {
+      + esParticipante(conversacionId, usuarioId) : boolean
+    }
+  }
+  package "messaging.api" {}
+  package "messaging.application" {}
+  package "messaging.infrastructure" {}
+}
+
+package "moderation" as MO #FCE4EC {
+  package "moderation.domain" {
+    interface PuertoPublicacion {
+      + transicionar(publicacionId, EstadoPublicacion, actorId, motivo) : void
+      + autorDe(publicacionId) : UsuarioId
+      + ocultadasUltimos30Dias(autorId) : int
+    }
+  }
+  package "moderation.api" {}
+  package "moderation.application" {}
+  package "moderation.infrastructure" {}
+}
+
+package "analytics" as AN #F3E5F5 {
+  package "analytics.api" {}
+  package "analytics.application" {}
+  package "analytics.infrastructure" {}
+}
+
+' ---------- Dependencias permitidas entre modulos ----------
+PJ ..> PuertoPerfil : usa
+PJ ..> PuertoReputacion : usa
+PJ ..> PuertoAutenticacion : usa
+DI ..> PuertoPerfil : usa
+DI ..> PuertoReputacion : usa
+DI ..> PuertoAutenticacion : usa
+IN ..> PuertoReputacion : usa
+IN ..> PuertoAutenticacion : usa
+IN ..> PuertoProyecto : usa
+IN ..> PuertoDiscusion : usa
+ME ..> PuertoSeguimiento : usa
+ME ..> PuertoReputacion : usa
+ME ..> PuertoAutenticacion : usa
+MO ..> PuertoPublicacion : implementado por project y discussion
+MO ..> PuertoComentario : usa
+MO ..> PuertoSancion : usa
+PR ..> AlmacenArchivos : usa
+AN ..> PuertoAutenticacion : usa
+
+ID ..> RegistroAuditoria : usa
+PJ ..> RegistroAuditoria : usa
+MO ..> RegistroAuditoria : usa
+
+note as NOTA #FFFDE7
+  <b>Reglas de dependencia (ADR-001), verificadas con ArchUnit</b>
+
+  1. Un modulo solo alcanza a otro a traves de una interfaz
+     publicada en su paquete <i>domain</i>, o por evento de Spring.
+  2. Ningun modulo importa el paquete <i>infrastructure</i> de otro.
+  3. Las entidades JPA no cruzan la frontera del modulo ni la capa <i>api</i>.
+  4. <i>shared</i> no depende de ningun modulo de negocio.
+  5. El grafo entre modulos es aciclico.
+
+  Dentro de cada modulo:
+     api  -->  application  -->  domain  <--  infrastructure
+     <i>domain</i> no conoce Spring ni JPA. La flecha de
+     <i>infrastructure</i> hacia <i>domain</i> es la inversion
+     de dependencia: implementa sus puertos.
+end note
+
+@enduml
