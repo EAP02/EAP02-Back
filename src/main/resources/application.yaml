@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: devnet
+  datasource:
+    url: x
+    username: y
+    password: z
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+
+server:
+  port: 8080
