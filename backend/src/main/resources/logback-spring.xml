@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logs estructurados en JSON (ADR-005, lineamiento 3.3).
+
+  En local la salida es legible por una persona; en cualquier otro perfil es JSON,
+  porque ahi la consume una herramienta. El campo traceId sale del MDC que puebla
+  FiltroTraceId y es lo que une esta linea con la respuesta HTTP y con la fila de
+  auditoria.
+-->
+<configuration>
+
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <springProfile name="local">
+        <appender name="CONSOLA" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="CONSOLA"/>
+        </root>
+    </springProfile>
+
+    <springProfile name="!local">
+        <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+                <providers>
+                    <timestamp>
+                        <timeZone>UTC</timeZone>
+                    </timestamp>
+                    <version/>
+                    <logLevel/>
+                    <loggerName>
+                        <shortenedLoggerNameLength>36</shortenedLoggerNameLength>
+                    </loggerName>
+                    <threadName/>
+                    <message/>
+                    <!-- traceId, ruta y metodo como campos de primer nivel: asi se
+                         pueden filtrar en Grafana sin parsear el mensaje. -->
+                    <mdc/>
+                    <arguments/>
+                    <stackTrace>
+                        <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                            <maxDepthPerThrowable>25</maxDepthPerThrowable>
+                            <maxLength>3000</maxLength>
+                            <rootCauseFirst>true</rootCauseFirst>
+                        </throwableConverter>
+                    </stackTrace>
+                    <pattern>
+                        <pattern>{"aplicacion":"devnet","entorno":"${SPRING_PROFILES_ACTIVE:-desconocido}"}</pattern>
+                    </pattern>
+                </providers>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+    </springProfile>
+
+    <!--
+      Nunca subir estos a DEBUG fuera de local: imprimirian parametros de consulta
+      con correos, tokens y contenido de mensajes privados. El lineamiento 6.2 lo
+      prohibe expresamente y hay una prueba que verifica la ausencia de esos
+      campos en la salida de log.
+    -->
+    <logger name="org.hibernate.SQL" level="WARN"/>
+    <logger name="org.hibernate.orm.jdbc.bind" level="WARN"/>
+
+</configuration>

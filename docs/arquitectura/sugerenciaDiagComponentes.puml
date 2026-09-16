@@ -1,0 +1,56 @@
+@startuml c4-03-componentes-api
+' DevNet - Red Social para Desarrolladores
+' C4 Nivel 3: Componentes del contenedor "API DevNet"
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Nivel 3 - Componentes y Puertos del contenedor API DevNet
+
+Container_Boundary(api, "API DevNet (Spring Boot)") {
+
+    Component(shared, "Kernel compartido", "shared", "Filtro traceId, manejador de errores (@RestControllerAdvice), paginacion por keyset, interfaz AlmacenArchivos, auditoria.")
+
+    Component(identity, "Identidad y acceso", "identity  [TRANSVERSAL]", "Auth local/GitHub, tokens JWT, rotacion con deteccion de reuso, MFA TOTP, RBAC. [Persistencia JPA]")
+
+    Component(profile, "Perfiles tecnicos", "profile", "Perfil del desarrollador, catalogo de tecnologias y grafo de seguimiento. [Persistencia JPA]")
+
+    Component(project, "Proyectos", "project", "Publicacion de proyectos y ciclo de vida de solicitudes de colaboracion. [Persistencia JPA]")
+
+    Component(discussion, "Discusiones", "discussion", "Hilos sobre tecnologias, categorias y respuesta aceptada. [Persistencia JPA]")
+
+    Component(interaction, "Interaccion", "interaction", "Comentarios anidados, reacciones y libro mayor de reputacion. [Persistencia JPA]")
+
+    Component(messaging, "Mensajeria", "messaging", "Conversaciones privadas y mensajes. [Persistencia JPA]")
+
+    Component(moderation, "Moderacion", "moderation", "Reportes de contenido, maquina de estados de publicaciones y suspensiones. [Persistencia JPA]")
+
+    Component(analytics, "Analitica", "analytics", "Reportes y metricas consolidadas sobre vistas de solo lectura. [Consultas SQL / Vistas]")
+}
+
+ContainerDb(archivos, "Supabase Storage", "Objetos", "Avatares e imagenes")
+System_Ext(github, "GitHub", "OIDC / OAuth2 API")
+
+' Integraciones Externas Especificas
+Rel(identity, github, "Flujo Authorization Code con PKCE", "HTTPS")
+Rel(profile, archivos, "AlmacenArchivos", "HTTPS")
+
+' Comunicacion Inter-Modulo (Puertos de Dominio segun ADR-001)
+Rel_D(project, profile, "PuertoPerfil: verifica perfil y reputacion")
+Rel_D(discussion, profile, "PuertoPerfil: verifica reputacion minima")
+Rel_D(messaging, profile, "PuertoSeguimiento: valida si puede escribir")
+Rel_D(interaction, profile, "PuertoReputacion: acredita puntos")
+Rel_D(moderation, project, "PuertoPublicacion: transiciona estado")
+Rel_D(moderation, discussion, "PuertoPublicacion: transiciona estado")
+Rel_D(moderation, identity, "PuertoSancion: suspende usuario")
+Rel_D(analytics, shared, "Proyecciones de solo lectura")
+
+SHOW_LEGEND()
+
+note as N1
+  <b>Persistencia y Reglas de Arquitectura (ADR-001 y ADR-003)</b>
+  - La conexion general hacia PostgreSQL (Supabase) se documenta en el Nivel 2 (Contenedores).
+  - Todos los modulos transaccionales persisten sus entidades via JPA/Flyway en esquemas aislados.
+  - Las flechas representan SIEMPRE una interfaz (puerto) en el paquete domain del modulo destino.
+  - ArchUnit valida en cada build la ausencia de ciclos y de llamadas directas entre infraestructuras.
+end note
+
+@enduml

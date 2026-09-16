@@ -1,0 +1,64 @@
+# =============================================================================
+#  DevNet - entorno de desarrollo local
+#
+#  Levanta solo la base de datos. La aplicacion se ejecuta desde el IDE o con
+#  ./mvnw spring-boot:run, que es mucho mas rapido de iterar que reconstruir la
+#  imagen en cada cambio.
+#
+#      docker compose up -d
+#      ./mvnw spring-boot:run
+#
+#  Para probar la imagen tal como se despliega:
+#      docker compose --profile completo up --build
+#
+#  Prometheus y Grafana entran en el sprint 3 (lineamiento 3.7).
+# =============================================================================
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: devnet-db
+    environment:
+      POSTGRES_DB: devnet
+      POSTGRES_USER: devnet
+      POSTGRES_PASSWORD: devnet
+      # Mismo collation que Supabase, para que un plan de ejecucion medido en
+      # local signifique algo respecto al de integracion.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - datos-postgres:/var/lib/postgresql/data
+    command:
+      # Registra toda consulta que pase de medio segundo: es el insumo del
+      # analisis de indices de docs/bd/04-indices.md.
+      - "postgres"
+      - "-c"
+      - "log_min_duration_statement=500"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devnet -d devnet"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    # Solo con --profile completo: en el dia a dia la app corre fuera de Docker.
+    profiles: ["completo"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: devnet-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/devnet
+      SPRING_DATASOURCE_USERNAME: devnet
+      SPRING_DATASOURCE_PASSWORD: devnet
+    ports:
+      - "8080:8080"
+
+volumes:
+  datos-postgres:

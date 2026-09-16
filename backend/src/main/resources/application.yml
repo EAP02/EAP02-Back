@@ -1,0 +1,130 @@
+# ===========================================================================
+# DevNet - Configuracion base, comun a todos los entornos.
+#
+# Lo que cambia por entorno vive en application-<perfil>.yml.
+# Ningun secreto se versiona: llegan por variable de entorno (lineamiento 7.3).
+# Ver .env.example para la lista completa.
+# ===========================================================================
+
+spring:
+  application:
+    name: devnet
+  profiles:
+    default: local
+
+  jpa:
+    hibernate:
+      # ADR-003: Hibernate NUNCA crea ni modifica el esquema. Solo verifica que las
+      # entidades correspondan a lo que Flyway construyo. Si no coinciden, la
+      # aplicacion no arranca, que es exactamente lo que queremos.
+      ddl-auto: validate
+    # Cerrar la sesion al salir del servicio. Con open-in-view activo, una entidad
+    # perezosa se cargaria al serializar el DTO, generando consultas invisibles
+    # fuera de transaccion.
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # En false a proposito: si la base tiene objetos sin historial de migracion,
+    # queremos enterarnos, no que Flyway asuma una linea base y siga.
+    baseline-on-migrate: false
+    validate-on-migrate: true
+
+  datasource:
+    hikari:
+      # El plan gratuito de Supabase limita las conexiones simultaneas y el pooler
+      # opera en modo transaccion (ADR-003).
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 20000
+      max-lifetime: 1200000
+
+  jackson:
+    default-property-inclusion: non_null
+    # Boot 4 usa Jackson 3 y movio estas claves bajo 'json'. En Boot 3 colgaban
+    # directamente de spring.jackson.serialization / .deserialization.
+    json:
+      write:
+        write-dates-as-timestamps: false
+        fail-on-empty-beans: false
+      read:
+        fail-on-unknown-properties: true
+
+  threads:
+    virtual:
+      # Desactivados. Requieren Java 21 y el equipo trabaja sobre 17; ademas el
+      # driver JDBC de PostgreSQL todavia usa bloques synchronized que fijan el
+      # hilo portador, asi que bajo carga degradarian mas de lo que aportan.
+      enabled: false
+
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+  # Render termina TLS en su proxy: sin esto, las URLs generadas salen en http.
+  forward-headers-strategy: framework
+  error:
+    whitelabel:
+      enabled: false
+  compression:
+    enabled: true
+    mime-types: application/json
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+      group:
+        readiness:
+          include: db
+  metrics:
+    tags:
+      application: devnet
+  observations:
+    key-values:
+      application: devnet
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+
+devnet:
+  api:
+    version: v1
+    url-servidor: ${API_URL:http://localhost:8080}
+  seguridad:
+    origenes-permitidos: ${CORS_ORIGENES:http://localhost:3000}
+    vigencia-acceso: 15m       # corto: el JWT de acceso no se puede revocar
+    vigencia-refresco: 7d      # la revocacion opera sobre el refresco (ADR-004)
+    intentos-maximos: 5
+    bloqueo: 15m               # sin expiracion periodica de clave (lineamiento 3.4)
+  reputacion:
+    minima-para-discusion: 10
+    minima-para-mensaje-a-desconocido: 25
+  almacenamiento:
+    tamano-maximo-bytes: 5242880          # 5 MiB
+    tipos-permitidos: image/jpeg,image/png,image/webp
+    vigencia-url-firmada: 1h
+
+logging:
+  level:
+    root: INFO
+    com.codefactory.devnet: INFO

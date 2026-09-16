@@ -1,0 +1,57 @@
+# ---------- Secretos: nunca, bajo ninguna circunstancia ----------
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+*.jks
+# db-roles.sql con las claves ya sustituidas
+docs/bd/db-roles.local.sql
+
+# ---------- Java / Maven ----------
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+dependency-reduced-pom.xml
+*.class
+*.jar
+!maven-wrapper.jar
+*.war
+hs_err_pid*
+replay_pid*
+
+# ---------- IDE ----------
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+.settings/
+.classpath
+.project
+.factorypath
+nbproject/
+build/
+
+# ---------- Sistema ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- Herramientas ----------
+.scannerwork/
+.sonarlint/
+*.log
+logs/
+
+# ---------- Diagramas renderizados ----------
+# Las fuentes .puml se versionan; las imagenes se generan al exportar para
+# Azure DevOps y no deben ensuciar el historial.
+docs/arquitectura/*.png
+docs/arquitectura/*.svg
+docs/arquitectura/out/

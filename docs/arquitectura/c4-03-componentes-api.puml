@@ -1,0 +1,76 @@
+@startuml c4-03-componentes-api
+' DevNet - Red Social para Desarrolladores
+' C4 Nivel 3: Componentes dentro del contenedor "API DevNet"
+' Sin conexion a internet, reemplazar el include por: !include <C4/C4_Component>
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Nivel 3 - Componentes del contenedor API DevNet
+
+Person(usuario, "Usuario autenticado", "Desarrollador, moderador o administrador")
+
+Container_Boundary(api, "API DevNet") {
+
+    Component(shared, "Kernel compartido", "shared", "Filtro de traceId, manejador global de errores (ADR-005), paginacion por keyset, interfaz AlmacenArchivos, registro de auditoria. No depende de ningun modulo de negocio.")
+
+    Component(identity, "Identidad y acceso", "identity  [MODULO TRANSVERSAL]", "Registro, inicio de sesion local y por GitHub OIDC, emision y rotacion de tokens con deteccion de reuso, MFA TOTP, resolucion de permisos RBAC.")
+
+    Component(profile, "Perfiles tecnicos", "profile", "Perfil del desarrollador, catalogo de tecnologias con nivel de dominio, y grafo de seguimiento entre miembros.")
+
+    Component(project, "Proyectos", "project", "Publicacion de proyectos y repositorios, y ciclo de vida de las solicitudes de colaboracion.")
+
+    Component(discussion, "Discusiones", "discussion", "Hilos sobre tecnologias y herramientas, categorias y marcado de respuesta aceptada.")
+
+    Component(interaction, "Interaccion", "interaction", "Comentarios anidados, reacciones y libro mayor de eventos de reputacion.")
+
+    Component(messaging, "Mensajeria", "messaging", "Conversaciones privadas, envio de mensajes y conteo de no leidos.")
+
+    Component(moderation, "Moderacion", "moderation", "Reportes de contenido, maquina de estados de la publicacion y suspensiones automaticas.")
+
+    Component(analytics, "Analitica", "analytics", "Reportes de actividad y crecimiento de la comunidad sobre metricas diarias consolidadas.")
+}
+
+ContainerDb(bd, "PostgreSQL", "Supabase", "Esquema versionado con Flyway")
+ContainerDb(archivos, "Supabase Storage", "Objetos", "Avatares e imagenes")
+System_Ext(github, "GitHub", "OIDC y API de repositorios")
+
+Rel(usuario, identity, "Se autentica", "REST")
+Rel(usuario, project, "Publica y colabora", "REST")
+Rel(usuario, discussion, "Debate", "REST")
+Rel(usuario, interaction, "Comenta y reacciona", "REST")
+Rel(usuario, messaging, "Conversa", "REST")
+Rel(usuario, moderation, "Reporta y resuelve", "REST")
+Rel(usuario, analytics, "Consulta reportes", "REST")
+
+Rel(identity, github, "Flujo Authorization Code con PKCE", "HTTPS")
+
+Rel_D(project, profile, "PuertoPerfil: verifica perfil y reputacion")
+Rel_D(discussion, profile, "PuertoPerfil: verifica reputacion minima")
+Rel_D(messaging, profile, "PuertoSeguimiento: valida si puede escribir")
+Rel_D(interaction, profile, "PuertoReputacion: acredita puntos")
+Rel_D(moderation, project, "PuertoPublicacion: transiciona estado")
+Rel_D(moderation, discussion, "PuertoPublicacion: transiciona estado")
+Rel_D(moderation, identity, "PuertoSancion: suspende usuario")
+Rel_D(analytics, shared, "Proyecciones de solo lectura")
+
+Rel(profile, bd, "JPA")
+Rel(project, bd, "JPA")
+Rel(discussion, bd, "JPA")
+Rel(interaction, bd, "JPA")
+Rel(messaging, bd, "JPA")
+Rel(moderation, bd, "JPA")
+Rel(identity, bd, "JPA")
+Rel(analytics, bd, "Consultas nativas y vistas")
+Rel(profile, archivos, "AlmacenArchivos")
+
+SHOW_LEGEND()
+
+note as N1
+  <b>Regla de dependencia entre modulos (ADR-001)</b>
+  Las flechas entre modulos representan SIEMPRE una interfaz
+  (puerto) publicada en el paquete domain del modulo destino,
+  nunca una llamada directa a su infraestructura ni el paso
+  de entidades JPA. ArchUnit rompe el build si se viola.
+  El grafo de dependencias entre modulos es aciclico.
+end note
+
+@enduml

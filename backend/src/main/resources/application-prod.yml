@@ -1,0 +1,49 @@
+# ===========================================================================
+# Perfil PROD - Render + Supabase.
+#
+# Todo llega por variable de entorno. Si falta una, la aplicacion NO arranca:
+# es preferible un fallo ruidoso al despliegue que un servicio corriendo con
+# una credencial por defecto.
+# ===========================================================================
+
+spring:
+  datasource:
+    url: ${DATASOURCE_URL}
+    username: ${DATASOURCE_USUARIO}
+    password: ${DATASOURCE_CLAVE}
+
+  flyway:
+    # La aplicacion se conecta con devnet_app, que NO puede modificar el esquema.
+    # Las migraciones corren con devnet_migrador (ver docs/bd/db-roles.sql).
+    user: ${FLYWAY_USUARIO}
+    password: ${FLYWAY_CLAVE}
+
+springdoc:
+  # Swagger UI cerrado en produccion: es superficie de exploracion, no de operacion.
+  # El contrato se entrega como artefacto versionado del pipeline (ADR-002).
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false
+
+management:
+  endpoint:
+    health:
+      show-details: never
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
+logging:
+  level:
+    root: WARN
+    com.codefactory.devnet: INFO
+    # Nunca DEBUG aqui: expondria parametros de consulta con datos personales.
+    org.hibernate.SQL: WARN
+
+devnet:
+  api:
+    url-servidor: ${API_URL}
+  seguridad:
+    origenes-permitidos: ${CORS_ORIGENES}
