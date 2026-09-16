@@ -1,10 +1,14 @@
 package com.codefactory.devnet.arquitectura;
 
+import com.codefactory.devnet.shared.api.RespuestaError;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
+
+import java.time.Instant;
+import java.util.List;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
@@ -169,11 +173,31 @@ class FronterasModularesTest {
      * esta regla basta con que un modulo tenga prisa para que aparezca un segundo
      * formato, y el contrato deja de ser uno.
      */
+    /**
+     * Comprueba la <b>construccion</b>, no la mencion.
+     *
+     * <p>La version anterior usaba {@code dependOnClassesThat}, y eso marcaba como
+     * violacion los {@code @ApiResponse(content = @Content(schema = @Schema(
+     * implementation = RespuestaError.class)))} de los controladores. Pero eso es
+     * documentacion del contrato, que es justo lo que queremos que hagan: declarar
+     * que sus errores tienen la forma comun. Lo que debe prohibirse es que un modulo
+     * <i>fabrique</i> el objeto.</p>
+     *
+     * <p>La firma se enumera explicitamente porque {@code callConstructor} la exige.
+     * Si {@code RespuestaError} gana o pierde un campo, hay que actualizarla aqui o
+     * la regla dejara de vigilar nada.</p>
+     */
     @ArchTest
     static final ArchRule solo_el_kernel_construye_respuestas_de_error =
             noClasses()
                     .that().resideOutsideOfPackage(RAIZ + ".shared.api..")
-                    .should().dependOnClassesThat()
-                    .haveFullyQualifiedName(RAIZ + ".shared.api.RespuestaError")
+                    .should().callConstructor(
+                            RespuestaError.class,
+                            String.class,     // errorCode
+                            String.class,     // message
+                            List.class,       // details
+                            String.class,     // traceId
+                            Instant.class,    // timestamp
+                            String.class)     // path
                     .because("toda respuesta de error sale del manejador global; un modulo que la construya por su cuenta rompe la uniformidad del contrato (ADR-005)");
 }
