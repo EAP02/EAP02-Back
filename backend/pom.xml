@@ -38,6 +38,12 @@
         <totp.version>1.7.1</totp.version>
         <archunit.version>1.3.0</archunit.version>
         <jacoco.version>0.8.12</jacoco.version>
+        <!--
+          Spring Boot 4 ya no gestiona las versiones de Testcontainers en su BOM
+          (si lo hacia en la linea 3.x). Se importa el BOM propio mas abajo, en
+          dependencyManagement, para no tener que fijar version en cada artefacto.
+        -->
+        <testcontainers.version>1.20.4</testcontainers.version>
 
         <!--
           Umbral de cobertura, escalonado por sprint.
@@ -62,6 +68,23 @@
             ${project.build.directory}/site/jacoco/jacoco.xml
         </sonar.coverage.jacoco.xmlReportPaths>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!--
+              Fija de una vez la version de todo el ecosistema Testcontainers
+              (junit-jupiter, postgresql y el nucleo), para que no puedan
+              desalinearse entre si.
+            -->
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>${testcontainers.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
 
