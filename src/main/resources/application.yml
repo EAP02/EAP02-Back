@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: EAP02-Caso-13
+  datasource:
+    url: jdbc:postgresql://localhost:5432/red_social
+    username: postgres
+    password: Sofigc@0906
+  jpa:
+    hibernate:
+      ddl-auto: update
+jwt:
+  secret: Kj8mN2pQr9xVtY4wZ7aB1cD6eF3gH5iL0oP
+  expiration-minutes: 60
