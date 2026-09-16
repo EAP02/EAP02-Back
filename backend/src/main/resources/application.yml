@@ -48,15 +48,23 @@ spring:
       max-lifetime: 1200000
 
   jackson:
+    # Los nulos no viajan en la respuesta: un campo ausente y uno nulo significan
+    # lo mismo aqui, y omitirlo deja el JSON mas limpio.
     default-property-inclusion: non_null
-    # Boot 4 usa Jackson 3 y movio estas claves bajo 'json'. En Boot 3 colgaban
-    # directamente de spring.jackson.serialization / .deserialization.
-    json:
-      write:
-        write-dates-as-timestamps: false
-        fail-on-empty-beans: false
-      read:
-        fail-on-unknown-properties: true
+    serialization:
+      fail-on-empty-beans: false
+
+    # NOTA sobre Jackson 3 (Boot 4). Se quitaron dos ajustes que si existian en
+    # Jackson 2, por razones distintas:
+    #
+    #   write-dates-as-timestamps: ya no esta en SerializationFeature. Se movio a
+    #     DateTimeFeature, y ademas el valor por defecto de Jackson 3 ya es
+    #     ISO-8601, que era lo que queriamos. No hay nada que configurar.
+    #
+    #   deserialization.fail-on-unknown-properties: pendiente de verificar contra
+    #     el enum de Jackson 3 antes de reponerlo. Rechazar campos desconocidos
+    #     sigue siendo lo deseable (un campo de mas casi siempre es un typo del
+    #     cliente), pero no bloquea ninguna HU del sprint.
 
   threads:
     virtual:

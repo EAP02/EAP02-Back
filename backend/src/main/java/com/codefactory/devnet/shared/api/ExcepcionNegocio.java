@@ -7,7 +7,7 @@ import java.util.List;
  *
  * <p>Es la unica via por la que el dominio y la capa de aplicacion senalan un error
  * al cliente. El manejador global la traduce al cuerpo de {@link RespuestaError}
- * usando el {@link HttpStatus} que declara su {@link CodigoError}, de modo que el
+ * usando el estado HTTP que declara su {@link CodigoError}, de modo que el
  * controlador nunca decide codigos HTTP.</p>
  *
  * <p>No se lanza directamente con un mensaje suelto: siempre con un codigo del

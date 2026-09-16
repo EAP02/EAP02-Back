@@ -1,7 +1,7 @@
 package com.codefactory.devnet.identity.domain;
 
 import com.codefactory.devnet.shared.api.CodigoError;
-import org.springframework.http.HttpStatus;
+
 
 /** Codigos de error del modulo de identidad. Prefijo {@code AUTH_}. */
 public enum CodigoErrorIdentidad implements CodigoError {
@@ -13,19 +13,19 @@ public enum CodigoErrorIdentidad implements CodigoError {
      * codigos distintos permitirian enumerar cuentas registradas probando correos.</p>
      */
     AUTH_CREDENCIALES_INVALIDAS(
-            HttpStatus.UNAUTHORIZED,
+            401,
             "Correo o contrasena incorrectos."),
 
     AUTH_CUENTA_BLOQUEADA(
-            HttpStatus.UNAUTHORIZED,
+            401,
             "La cuenta esta bloqueada temporalmente por intentos fallidos. Intenta mas tarde."),
 
     AUTH_CUENTA_SUSPENDIDA(
-            HttpStatus.FORBIDDEN,
+            403,
             "Tu cuenta esta suspendida y no puede realizar esta accion."),
 
     AUTH_CUENTA_DESACTIVADA(
-            HttpStatus.FORBIDDEN,
+            403,
             "Esta cuenta esta desactivada."),
 
     /**
@@ -35,17 +35,17 @@ public enum CodigoErrorIdentidad implements CodigoError {
      * MODERADOR o ADMIN existe, pero no puede ejercer sus permisos hasta inscribirlo.</p>
      */
     AUTH_MFA_REQUERIDO(
-            HttpStatus.FORBIDDEN,
+            403,
             "Este rol exige un segundo factor de autenticacion. Inscribelo antes de continuar."),
 
     AUTH_USUARIO_NO_ENCONTRADO(
-            HttpStatus.NOT_FOUND,
+            404,
             "El usuario no existe.");
 
-    private final HttpStatus estado;
+    private final int estado;
     private final String mensaje;
 
-    CodigoErrorIdentidad(HttpStatus estado, String mensaje) {
+    CodigoErrorIdentidad(int estado, String mensaje) {
         this.estado = estado;
         this.mensaje = mensaje;
     }
@@ -56,7 +56,7 @@ public enum CodigoErrorIdentidad implements CodigoError {
     }
 
     @Override
-    public HttpStatus estado() {
+    public int estadoHttp() {
         return estado;
     }
 

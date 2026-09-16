@@ -221,6 +221,6 @@ public class ManejadorGlobalErrores {
                 FiltroTraceId.actual(),
                 Instant.now(),
                 req.getRequestURI());
-        return ResponseEntity.status(codigo.estado()).body(cuerpo);
+        return ResponseEntity.status(codigo.estadoHttp()).body(cuerpo);
     }
 }

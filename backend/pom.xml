@@ -118,6 +118,16 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-flyway</artifactId>
         </dependency>
+        <!--
+          Obligatorio. Desde Flyway 10 el soporte de cada motor vive en su propio
+          modulo y el nucleo no sabe hablar con ninguno: sin esto, el arranque falla
+          con "Unsupported Database: PostgreSQL 16.x". El starter de Boot trae
+          flyway-core, no el dialecto.
+        -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
@@ -137,6 +147,17 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security-oauth2-client</artifactId>
+        </dependency>
+        <!--
+          Obligatorio para Argon2PasswordEncoder. Spring Security declara
+          BouncyCastle como dependencia OPCIONAL: sin ella el bean se crea, pero
+          revienta con NoClassDefFoundError la primera vez que codifica una clave.
+          Ver ADR-004 para por que Argon2id y no BCrypt.
+        -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>1.78.1</version>
         </dependency>
         <!-- MFA TOTP (RFC 6238) -->
         <dependency>
@@ -200,6 +221,16 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!--
+          Boot 4 saco las anotaciones de test a modulos propios: @AutoConfigureMockMvc
+          y @WebMvcTest ya no vienen con spring-boot-starter-test. Sin este starter,
+          MockMvc no existe y las pruebas de controlador no compilan.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

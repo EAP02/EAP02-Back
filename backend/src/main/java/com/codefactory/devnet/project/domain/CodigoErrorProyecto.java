@@ -1,7 +1,7 @@
 package com.codefactory.devnet.project.domain;
 
 import com.codefactory.devnet.shared.api.CodigoError;
-import org.springframework.http.HttpStatus;
+
 
 /** Codigos de error del modulo de proyectos. Prefijo {@code PROYECTO_}. */
 public enum CodigoErrorProyecto implements CodigoError {
@@ -13,7 +13,7 @@ public enum CodigoErrorProyecto implements CodigoError {
      * negocio que dependa del estado del sistema.</p>
      */
     PROYECTO_DATOS_INVALIDOS(
-            HttpStatus.BAD_REQUEST,
+            400,
             "Faltan datos obligatorios o no cumplen el formato esperado."),
 
     /**
@@ -24,7 +24,7 @@ public enum CodigoErrorProyecto implements CodigoError {
      * reintente pensando que fue un fallo transitorio.</p>
      */
     PROYECTO_AUTOR_AJENO(
-            HttpStatus.FORBIDDEN,
+            403,
             "Solo puedes publicar proyectos a tu propio nombre."),
 
     /**
@@ -32,29 +32,29 @@ public enum CodigoErrorProyecto implements CodigoError {
      * perfil tiene que existir.
      */
     PROYECTO_PERFIL_INEXISTENTE(
-            HttpStatus.UNPROCESSABLE_ENTITY,
+            422,
             "Necesitas completar tu perfil antes de publicar un proyecto."),
 
     PROYECTO_AUTOR_SIN_PERMISO_DE_ESCRITURA(
-            HttpStatus.UNPROCESSABLE_ENTITY,
+            422,
             "Tu cuenta no puede publicar en este momento."),
 
     PROYECTO_TECNOLOGIA_DESCONOCIDA(
-            HttpStatus.UNPROCESSABLE_ENTITY,
+            422,
             "Alguna de las tecnologias seleccionadas no existe o no esta aprobada."),
 
     PROYECTO_REPOSITORIO_DUPLICADO(
-            HttpStatus.CONFLICT,
+            409,
             "Ese repositorio ya esta enlazado a otro proyecto."),
 
     PROYECTO_NO_ENCONTRADO(
-            HttpStatus.NOT_FOUND,
+            404,
             "El proyecto no existe o no esta disponible para ti.");
 
-    private final HttpStatus estado;
+    private final int estado;
     private final String mensaje;
 
-    CodigoErrorProyecto(HttpStatus estado, String mensaje) {
+    CodigoErrorProyecto(int estado, String mensaje) {
         this.estado = estado;
         this.mensaje = mensaje;
     }
@@ -65,7 +65,7 @@ public enum CodigoErrorProyecto implements CodigoError {
     }
 
     @Override
-    public HttpStatus estado() {
+    public int estadoHttp() {
         return estado;
     }
 
