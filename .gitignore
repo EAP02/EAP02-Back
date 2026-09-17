@@ -1,0 +1,30 @@
+# Credenciales
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.jks
+
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+hs_err_pid*
+
+# IDE y sistema
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+out/
+build/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
