@@ -1,84 +1,213 @@
-# DevNet — Red Social para Desarrolladores
+# DevNet — backend
 
-Proyecto del **equipo avanzado** de CodeF@ctory UdeA. Caso 13.
-
-Backend robusto integrado a base de datos, sin frontend propio (el perfil avanzado
-marca el frontend como N/A). La superficie de demostración es **Swagger UI** más una
-colección de peticiones y los tableros de observabilidad.
+Spring Boot 4.0.8 · Java 17 · PostgreSQL 16. Monolito modular con siete módulos de
+negocio y un kernel compartido ([ADR-001](../docs/adr/ADR-001-estilo-arquitectonico.md)).
 
 ---
 
-## Qué hay en este repositorio de documentación
+## Arrancar
 
-| Ruta | Curso | Contenido |
+```bash
+# 1. Base de datos local
+docker compose up -d
+
+# 2. Aplicación
+./mvnw spring-boot:run
+```
+
+- API: <http://localhost:8080/api/v1>
+- Contrato: <http://localhost:8080/swagger-ui.html>
+- Salud: <http://localhost:8080/actuator/health>
+
+**Requisitos:** JDK 17 y Docker. Todo el equipo con la **misma** versión mayor: con
+JDK 11 o 21 en su lugar, el build falla o genera bytecode distinto.
+
+```powershell
+winget install Microsoft.OpenJDK.17
+winget install Docker.DockerDesktop
+```
+
+> Java 17 es el baseline de Spring Boot 4.0 y la versión acordada por el equipo.
+> Boot 4 recomienda 21 por los virtual threads, que aquí están desactivados de todas
+> formas — ver [`application.yml`](src/main/resources/application.yml).
+
+## Comandos
+
+| Qué | Comando |
+|---|---|
+| Solo unitarias (sin Docker) | `./mvnw test` |
+| Todo, con cobertura y umbral | `./mvnw verify` |
+| Una clase | `./mvnw test -Dtest=PaginaKeysetTest` |
+| Solo las reglas de arquitectura | `./mvnw test -Dtest=FronterasModularesTest` |
+| Empaquetar | `./mvnw clean package` |
+| Imagen como se despliega | `docker compose --profile completo up --build` |
+
+El reporte de cobertura queda en `target/site/jacoco/index.html`.
+
+---
+
+## Estructura
+
+```
+com.codefactory.devnet
+├── config/                 SeguridadConfig, OpenApiConfig, CacheConfig, PropiedadesDevNet
+├── shared/
+│   ├── api/                RespuestaError, ManejadorGlobalErrores, FiltroTraceId, PaginaKeyset
+│   ├── integration/        ← contratos ENTRE módulos (los puertos del diagrama)
+│   └── audit/              registro de auditoría
+├── identity/               transversal: auth, tokens, MFA, RBAC
+├── profile/                perfiles, tecnologías, seguimiento
+├── project/                proyectos, repositorios, colaboraciones
+├── discussion/             hilos y categorías
+├── interaction/            comentarios, reacciones, reputación
+├── messaging/              conversaciones privadas
+└── analytics/              reportes (solo lectura, sin capa domain)
+```
+
+Cada módulo de negocio tiene cuatro capas:
+
+```
+api/            controladores REST, DTOs, mapeadores   → application, domain
+application/    casos de uso, transacciones            → domain
+domain/         entidades, reglas, políticas           → nada del framework
+infrastructure/ adaptadores JPA, clientes externos     → domain
+```
+
+### La regla que no se negocia
+
+**Ningún módulo importa otro módulo.** `interaction` no conoce
+`com.codefactory.devnet.project`; conoce `IContenidoInteractuable`, que vive en
+`shared.integration`.
+
+Esto refina lo que decía ADR-001 (publicar cada puerto en el `domain` del módulo
+destino). Se rompía en cuanto dos módulos debían ofrecer la misma capacidad:
+`interaction` comenta proyectos **y** discusiones, y el puerto habría tenido que
+declararse dos veces con el mismo nombre y tipos incompatibles. Centralizarlos hace
+además que la verificación sea una sola prohibición en vez de una lista de pares
+permitidos.
+
+Los cuatro contratos, los del diagrama de componentes:
+
+| Contrato | Lo provee | Lo consume |
 |---|---|---|
-| [docs/adr/](docs/adr/) | Arquitectura | Registro de decisiones arquitectónicas (ADR) |
-| [docs/arquitectura/](docs/arquitectura/) | Arquitectura | C4, diagrama de paquetes, despliegue, proceso principal, RNF |
-| [docs/bd/](docs/bd/) | Bases de Datos | Consultas clave, modelo lógico, diccionario, índices, consultas no triviales |
-| [backend/src/main/resources/db/migration/](backend/src/main/resources/db/migration/) | Bases de Datos | Modelo físico versionado con Flyway |
+| `IUsuarioDirectorio` | `identity` | todos |
+| `IPerfilConsulta` | `profile` | `project`, `discussion`, `interaction`, `messaging` |
+| `IContenidoInteractuable` | `project` y `discussion` | `interaction` |
+| `IAlmacenArchivos` | `shared` (adaptador Supabase) | `profile` |
 
-**El modelo físico y el script de estructuras son el mismo artefacto.** No se mantiene
-un `.sql` de documentación aparte de las migraciones: la carpeta de Flyway es la única
-fuente de verdad del esquema, y el modelo lógico documenta el *porqué*.
+`FronterasModularesTest` rompe el build si alguna se viola. Si una regla estorba, la
+respuesta no es relajarla: es escribir un ADR que reemplace la decisión.
 
 ---
 
-## Alcance por curso
+## Cómo añadir una historia de usuario
 
-Este equipo cubre **Arquitectura de Software** y **Bases de Datos**. Los entregables de
-Calidad de Software y Gestión de Proyectos los producen los demás integrantes; esta
-documentación les sirve de insumo pero no los reemplaza.
+Rebanada vertical, siempre en este orden. Empezar por la entidad JPA lleva a un
+dominio anémico con la lógica repartida por los servicios.
 
-## Trazabilidad con Azure DevOps
+1. **`domain/`** — la entidad con sus reglas y las excepciones que lanza. Sin Spring
+   ni JPA. Prueba unitaria pura, sin contexto.
+2. **`domain/`** — el puerto de repositorio que el caso de uso necesita (interfaz).
+3. **`application/`** — el caso de uso. `@Service`, `@Transactional`, orquesta y
+   valida autorización. Prueba con el repositorio simulado.
+4. **`infrastructure/`** — la entidad JPA y el adaptador que implementa el puerto.
+5. **`api/`** — controlador, DTOs de petición y respuesta, `@PreAuthorize`.
+   Prueba con `@PruebaIntegracion` y `MockMvc`.
+6. **Migración** — si hace falta esquema nuevo, un `V<n>__<descripcion>.sql`.
+   **Nunca** se edita una migración ya aplicada; se corrige con la siguiente.
 
-El backlog vive en Azure DevOps y el código en GitHub. Para enlazarlos:
+### Códigos de error
 
-1. Instalar la app **Azure Boards** en la organización de GitHub.
-2. Escribir `AB#<id>` en los mensajes de commit y en los títulos de pull request.
+Cada módulo declara su `enum` de códigos implementando `CodigoError`, con prefijo
+propio y el estado HTTP decidido ahí mismo:
 
-Con eso cada historia de usuario queda enlazada a sus commits, su PR, su ejecución de
-pipeline y su despliegue sin trabajo manual. Es criterio evaluado (§4.3, Trazabilidad).
+```java
+public enum CodigoErrorProyecto implements CodigoError {
 
-## Convención de ramas
+    PROYECTO_CUPO_LLENO(HttpStatus.UNPROCESSABLE_ENTITY,
+        "Este proyecto ya alcanzo su numero maximo de colaboradores."),
 
+    PROYECTO_NO_BUSCA_COLABORADORES(HttpStatus.CONFLICT,
+        "Este proyecto no esta buscando colaboradores en este momento.");
+    ...
+}
 ```
-main                          rama protegida, sin commits directos
-feature/<id-historia>-<slug>  vida corta, integra por pull request
+
+Y se lanza así:
+
+```java
+throw new ExcepcionNegocio(CodigoErrorProyecto.PROYECTO_CUPO_LLENO);
 ```
 
----
+Nunca se construye una `RespuestaError` a mano: la arma el manejador global, y hay
+una regla de ArchUnit que lo impide.
 
-## Estado de los entregables de Sprint 1
-
-### Arquitectura de Software
-
-- [x] Diagrama C4 de contexto — [c4-01-contexto.puml](docs/arquitectura/c4-01-contexto.puml)
-- [x] Diagrama C4 de contenedores — [c4-02-contenedores.puml](docs/arquitectura/c4-02-contenedores.puml)
-- [x] Diagrama C4 de componentes — [c4-03-componentes-api.puml](docs/arquitectura/c4-03-componentes-api.puml)
-- [x] Diagrama de paquetes y componentes **con interfaces** — [uml-paquetes.puml](docs/arquitectura/uml-paquetes.puml)
-- [x] Diagrama de despliegue — [uml-despliegue.puml](docs/arquitectura/uml-despliegue.puml)
-- [x] Estilo arquitectónico preliminar justificado — [ADR-001](docs/adr/ADR-001-estilo-arquitectonico.md)
-- [x] Mínimo 3 ADR priorizados — hay 5
-- [ ] Proyecto base Spring Boot en GitHub
-- [ ] Al menos una HU implementada
-- [ ] Despliegue inicial
-
-### Bases de Datos
-
-- [x] Entidades y relaciones — [02-modelo-logico.md](docs/bd/02-modelo-logico.md)
-- [x] Preguntas / consultas clave — [01-consultas-clave.md](docs/bd/01-consultas-clave.md)
-- [x] Modelo lógico normalizado — [02-modelo-logico.md](docs/bd/02-modelo-logico.md)
-- [x] Modelo físico inicial — [V1__baseline.sql](backend/src/main/resources/db/migration/V1__baseline.sql)
+**409 vs 422:** `409` es conflicto con el *estado actual* del recurso (la máquina de
+estados no admite la transición). `422` es una regla de negocio que la petición
+incumple con independencia del estado (cupo lleno, reputación insuficiente).
+Distinguirlos evita el `400` para todo. Mapa completo en
+[ADR-005](../docs/adr/ADR-005-contrato-errores-traceid.md).
 
 ---
 
-## Cómo renderizar los diagramas
+## Base de datos
 
-Los `.puml` usan [C4-PlantUML](https://github.com/plantuml-stdlib/C4-PlantUML).
+El esquema lo construye **solo Flyway**, desde `src/main/resources/db/migration/`.
+Hibernate corre siempre con `ddl-auto=validate`: si una entidad JPA no corresponde a
+lo que Flyway construyó, la aplicación no arranca.
 
-- **VS Code:** extensión *PlantUML* (jebbs) + `Alt+D` para previsualizar.
-- **Sin instalar nada:** pegar el contenido en <https://www.plantuml.com/plantuml>.
-- **Exportar a PNG/SVG** para adjuntar en Azure DevOps antes de cada sustentación.
+Los tests de integración levantan PostgreSQL 16 real con Testcontainers y aplican las
+mismas migraciones. Nada de H2: el modelo usa columnas generadas `tsvector`, índices
+parciales y CTE recursivos, y otro dialecto escondería justo los errores que estas
+pruebas existen para encontrar.
 
-Los diagramas de estado y el MER están en Mermaid dentro de los `.md`, así que GitHub
-los renderiza directamente en el navegador sin herramientas adicionales.
+---
+
+## Estado actual
+
+| Listo | Pendiente |
+|---|---|
+| Estructura de los 7 módulos y el kernel | Emisión y validación de JWT |
+| Contrato de errores con `traceId` | Login con GitHub |
+| Los 4 contratos de `shared.integration` | MFA TOTP |
+| Reglas de ArchUnit | Adaptador real de Supabase Storage |
+| OpenAPI, CORS, Argon2id, caché | Las entidades JPA de cada módulo |
+| Docker, compose, pipeline | Primera HU de punta a punta |
+
+La cadena de seguridad está montada pero **la validación de JWT todavía no está
+conectada**: los endpoints públicos responden y el resto devuelve `401` a través del
+manejador global. Es intencional — permite trabajar sobre los demás módulos sin
+esperar a la historia de autenticación.
+
+El umbral de cobertura arranca en `0.00` y sube por sprint (`0.40` en el 2, `0.65` en
+el 3). Está explicado en el `pom.xml`, junto a la propiedad.
+
+---
+
+## Notas de Spring Boot 4
+
+Si buscas ayuda en tutoriales o respuestas escritas para Boot 3, esto es lo que cambió
+y te va a morder:
+
+| Boot 3 | Boot 4 |
+|---|---|
+| `spring-boot-starter-web` | `spring-boot-starter-webmvc` |
+| `flyway-core` suelto | `spring-boot-starter-flyway` (el starter es obligatorio) |
+| `spring-boot-starter-oauth2-client` | `spring-boot-starter-security-oauth2-client` |
+| `@SpringBootTest` traía `MockMvc` | hay que añadir `@AutoConfigureMockMvc` |
+| `@MockBean` / `@SpyBean` | `@MockitoBean` / `@MockitoSpyBean` (los viejos ya no existen) |
+| `spring.jackson.serialization.*` | `spring.jackson.json.write.*` |
+| `spring.jackson.deserialization.*` | `spring.jackson.json.read.*` |
+| Jackson 2 (`com.fasterxml.jackson`) | Jackson 3 (`tools.jackson`) |
+
+`@AutoConfigureMockMvc` ya viene dentro de `@PruebaIntegracion`, así que tus pruebas
+no tienen que acordarse.
+
+**Dos cosas a verificar en el primer build**, que no puedo comprobar sin JDK instalado:
+
+1. `logstash-logback-encoder` todavía depende de Jackson 2 mientras Boot 4 gestiona
+   Jackson 3. Conviven, pero dejan dos Jackson en el classpath. Si da guerra, la
+   salida es el soporte de logging estructurado que Boot trae de serie, ajustando
+   `logback-spring.xml`.
+2. `springdoc-openapi` 3.1.1 es la línea que acompaña a Boot 4, pero está anunciada
+   para Java 21+. Si rechaza el 17, hay que bajar a la última 3.0.x.
