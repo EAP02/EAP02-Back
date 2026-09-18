@@ -35,6 +35,7 @@ public class PublicarProyecto {
                             UsuarioDirectorio directorio) {
         this.proyectos = proyectos;
         this.directorio = directorio;
+
     }
 
     @Transactional
@@ -51,6 +52,15 @@ public class PublicarProyecto {
         if (!directorio.estaActivo(autor.id())) {
             throw new ExcepcionNegocio(CodigoErrorProyecto.PROYECTO_AUTOR_SIN_PERMISO_DE_ESCRITURA);
         }
+
+        // Criterio 1: el proyecto queda asociado al autor por su identificador. NO se
+        // comprueba aqui que exista su perfil, aunque seria defensa en profundidad:
+        // consultar 'profile' desde 'project' cerraria un ciclo, porque 'profile' ya
+        // depende de 'project' para mostrar los proyectos del perfil publico. Un ciclo
+        // entre modulos hace imposible extraer cualquiera de los dos.
+        //
+        // El perfil se crea junto con la cuenta (CrearPerfilAlRegistrarUsuario), asi
+        // que su ausencia seria una inconsistencia previa, no un caso de uso.
 
         // Criterio 2: la validacion de forma ocurre en el dominio y acumula todos los
         // fallos, para que el cliente reciba de una vez todo lo que debe corregir.

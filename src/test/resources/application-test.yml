@@ -1,0 +1,45 @@
+# ===========================================================================
+# Perfil TEST - pruebas de integracion.
+#
+# La conexion NO se declara aqui: la inyecta Testcontainers con
+# @ServiceConnection desde ContenedorPostgres. Un PostgreSQL real y efimero por
+# ejecucion, con las mismas migraciones de Flyway que produccion
+# (lineamiento 3.5: "integracion con base de datos real o contenedor").
+#
+# Nada de H2 ni de bases en memoria: un dialecto distinto oculta justo los
+# errores que estas pruebas deben encontrar (tsvector, indices parciales,
+# CTE recursivos, restricciones CHECK).
+# ===========================================================================
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    clean-disabled: false     # solo aqui: la base es desechable
+
+devnet:
+  seguridad:
+    origenes-permitidos: http://localhost
+    vigencia-acceso: 15m
+    vigencia-refresco: 7d
+    intentos-maximos: 5
+    bloqueo: 15m
+  reputacion:
+    minima-para-discusion: 10
+    minima-para-mensaje-a-desconocido: 25
+  almacenamiento:
+    tamano-maximo-bytes: 1048576
+    tipos-permitidos: image/png
+    vigencia-url-firmada: 5m
+
+logging:
+  level:
+    root: WARN
+    com.codefactory.devnet: INFO
+    org.testcontainers: INFO
