@@ -1,5 +1,6 @@
 package com.codefactory.devnet.profile.infrastructure;
 
+import com.codefactory.devnet.profile.domain.TecnologiaDeclarada;
 import jakarta.persistence.Column;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.ElementCollection;
@@ -11,8 +12,9 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
-import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -55,10 +57,19 @@ public class PerfilEntity {
     @Column(name = "url_linkedin")
     private String urlLinkedin;
 
+    /**
+     * Stack declarado, contra el catalogo curado de {@code tecnologia}.
+     *
+     * <p>Sustituye a la coleccion de texto libre {@code perfil_habilidad} que existio
+     * brevemente: dos formas de decir lo mismo eran duplicidad semantica, y solo la
+     * catalogada permite que los reportes por tecnologia signifiquen algo (V4).</p>
+     *
+     * <p>EAGER porque el stack es el perfil: no hay lectura de perfil que no lo
+     * necesite, y dejarlo perezoso solo anadiria un viaje mas a la base.</p>
+     */
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "perfil_habilidad", joinColumns = @JoinColumn(name = "usuario_id"))
-    @Column(name = "habilidad", nullable = false, length = 80)
-    private List<String> habilidades = new ArrayList<>();
+    @CollectionTable(name = "perfil_tecnologia", joinColumns = @JoinColumn(name = "usuario_id"))
+    private Set<TecnologiaDeclaradaEmbeddable> tecnologias = new LinkedHashSet<>();
 
     @Column(name = "anios_experiencia")
     private Short aniosExperiencia;
@@ -129,15 +140,19 @@ public class PerfilEntity {
         return urlLinkedin;
     }
 
-    public List<String> getHabilidades() {
-        return List.copyOf(habilidades);
+    public List<TecnologiaDeclarada> getTecnologias() {
+        return tecnologias.stream().map(TecnologiaDeclaradaEmbeddable::aDominio).toList();
     }
 
-    public void actualizar(String nombreCompleto, String biografia, List<String> habilidades,
+    public void actualizar(String nombreCompleto, String biografia,
+                           List<TecnologiaDeclarada> tecnologias,
                            String urlGithub, String urlLinkedin) {
         this.nombreCompleto = nombreCompleto;
         this.biografia = biografia;
-        this.habilidades = new ArrayList<>(habilidades);
+        // Se reemplaza el contenido en vez de la coleccion: Hibernate rastrea la
+        // instancia, y asignar una nueva provoca un borrado e insercion completos.
+        this.tecnologias.clear();
+        tecnologias.forEach(t -> this.tecnologias.add(TecnologiaDeclaradaEmbeddable.de(t)));
         this.urlGithub = urlGithub;
         this.urlLinkedin = urlLinkedin;
         this.actualizadoEn = Instant.now();

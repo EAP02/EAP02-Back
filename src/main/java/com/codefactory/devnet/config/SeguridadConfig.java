@@ -1,6 +1,6 @@
 package com.codefactory.devnet.config;
 
-import jakarta.servlet.http.HttpServletRequest;
+import com.codefactory.devnet.shared.config.PropiedadesDevNet;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,6 +40,10 @@ public class SeguridadConfig {
             "/api/v1/auth/inicio-sesion",
             "/api/v1/auth/registro",
             "/api/v1/auth/refresco",
+            // Publico a proposito: quien vuelve pasados 15 minutos tiene el token de
+            // acceso caducado y aun asi debe poder cerrar su sesion. La credencial que
+            // autoriza la operacion es la cookie de refresco, no el Bearer.
+            "/api/v1/auth/cierre-sesion",
             "/oauth2/**",
             "/login/oauth2/**"
     };
@@ -69,8 +73,18 @@ public class SeguridadConfig {
             // permite correr mas de una instancia sin sesion pegajosa (RNF-04).
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-            // CSRF protege formularios con sesion por cookie. Una API sin estado y
-            // con token en cabecera no tiene ese vector.
+            // CSRF protege formularios con sesion por cookie. El grueso de la API no
+            // tiene ese vector: sin estado y con el token en cabecera.
+            //
+            // Con dos excepciones, /api/v1/auth/refresco y /cierre-sesion, que si
+            // aceptan una credencial en cookie. Ahi el vector existe, pero lo que un
+            // tercero puede provocar es una rotacion o un cierre de sesion ajenos, no
+            // leer nada: CORS le impide ver la respuesta, y por tanto tambien el token
+            // nuevo. Lo cierra SameSite=Strict, que impide que la cookie viaje en una
+            // peticion originada en otro sitio.
+            //
+            // Si alguna vez hay que pasar a SameSite=None -frontend en otro dominio-,
+            // esta linea deja de ser defendible y hay que revisar el ADR-004.
             .csrf(csrf -> csrf.disable())
 
             .cors(Customizer.withDefaults())
@@ -148,15 +162,5 @@ public class SeguridadConfig {
         UrlBasedCorsConfigurationSource fuente = new UrlBasedCorsConfigurationSource();
         fuente.registerCorsConfiguration("/api/**", config);
         return fuente;
-    }
-
-    /** IP real del cliente. Render termina TLS en su proxy. */
-    public static String ipDe(HttpServletRequest http) {
-        String reenviada = http.getHeader("X-Forwarded-For");
-        if (reenviada != null && !reenviada.isBlank()) {
-            // Solo el primer valor: el resto de la cadena lo puede falsificar el cliente.
-            return reenviada.split(",")[0].trim();
-        }
-        return http.getRemoteAddr();
     }
 }
