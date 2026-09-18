@@ -30,9 +30,12 @@ devnet:
     vigencia-refresco: 7d
     intentos-maximos: 5
     bloqueo: 15m
+<<<<<<< HEAD
     # En true, al reves que en local: RefrescoIT comprueba que la cookie sale con
     # Secure, y con el valor de desarrollo esa comprobacion no verificaria nada.
     cookie-segura: true
+=======
+>>>>>>> 1662f8046c1d4ffab5ab6e949f6dc9d45824892b
   reputacion:
     minima-para-discusion: 10
     minima-para-mensaje-a-desconocido: 25

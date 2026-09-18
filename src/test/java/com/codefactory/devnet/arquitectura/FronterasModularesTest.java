@@ -27,8 +27,13 @@ import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.sli
  * en su propio paquete {@code api}</b>, y los demas solo pueden alcanzarlo por ahi.</p>
  *
  * <p>Las dos son defendibles y esta segunda es la que esta en el codigo, asi que las
+<<<<<<< HEAD
  * reglas la verifican. Queda registrada en el <b>ADR-006</b>, que supersede la regla 1
  * del ADR-001.</p>
+=======
+ * reglas la verifican. <b>Falta el ADR-006 que la registre</b> y supersede al 001: sin
+ * el, el registro de decisiones deja de describir el sistema.</p>
+>>>>>>> 1662f8046c1d4ffab5ab6e949f6dc9d45824892b
  *
  * <p>Si una regla estorba, la respuesta no es relajarla: es revisar si la decision
  * sigue siendo la correcta y, si no lo es, escribir el ADR que la reemplace.</p>
@@ -190,6 +195,7 @@ class FronterasModularesTest {
                             Instant.class,    // timestamp
                             String.class)     // path
                     .because("toda respuesta de error sale del manejador global; un modulo que la construya por su cuenta rompe la uniformidad del contrato");
+<<<<<<< HEAD
 
     // ------------------------------------------------------------------
     // Regla 7 - Ningun modulo de negocio depende de config
@@ -225,4 +231,6 @@ class FronterasModularesTest {
                     .check(clases);
         }
     }
+=======
+>>>>>>> 1662f8046c1d4ffab5ab6e949f6dc9d45824892b
 }

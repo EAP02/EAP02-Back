@@ -171,6 +171,19 @@ public class ManejadorGlobalErrores {
         }
     }
 
+<<<<<<< HEAD
+=======
+    /** IP real del cliente. Render termina TLS en su proxy. */
+    private String ipDe(HttpServletRequest http) {
+        String reenviada = http.getHeader("X-Forwarded-For");
+        if (reenviada != null && !reenviada.isBlank()) {
+            // Solo el primer valor: el resto de la cadena lo puede falsificar el cliente.
+            return reenviada.split(",")[0].trim();
+        }
+        return http.getRemoteAddr();
+    }
+
+>>>>>>> 1662f8046c1d4ffab5ab6e949f6dc9d45824892b
     // ------------------------------------------------------------------
     // Conflictos de datos
     // ------------------------------------------------------------------
