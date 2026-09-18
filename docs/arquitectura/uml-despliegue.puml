@@ -1,0 +1,93 @@
+@startuml uml-despliegue
+' DevNet - Diagrama UML de Despliegue
+' Entregable de Sprint 1 / refinado en Sprint 2 (lineamientos, 3.7)
+skinparam shadowing false
+skinparam linetype ortho
+
+title Diagrama de despliegue - DevNet (entorno de produccion)
+
+node "Cliente" as cliente {
+  artifact "Navegador\n(Swagger UI)" as nav
+  artifact "Coleccion de peticiones\n(pruebas y demo)" as col
+}
+
+cloud "Render  (region Oregon, us-west)" as render {
+  node "Web Service  devnet-api" as ws {
+    artifact "devnet-api:<version>\nImagen Docker multi-stage" as img
+    component "JRE 17 (Temurin, alpine)" as jre
+    component "Spring Boot 4.0.8\npuerto $PORT (Render lo asigna)" as boot
+    note right of boot
+      Plan gratuito: el servicio se
+      suspende por inactividad y el
+      arranque en frio supera los 30 s,
+      lo que incumple el RNF-02.
+      Mitigacion: ping programado cada
+      10 min a /actuator/health y
+      promocion a plan Starter durante
+      la semana de sustentacion.
+    end note
+  }
+}
+
+cloud "Supabase  (region us-east)" as supabase {
+  database "PostgreSQL 16\ndevnet-prod" as pg {
+    artifact "Esquema public\n(29 tablas, migraciones V1 a V5)" as esquema
+    artifact "Roles: devnet_migrador,\ndevnet_app, devnet_lectura" as roles
+  }
+  node "Storage" as storage {
+    artifact "bucket: avatares" as b1
+    artifact "bucket: proyectos" as b2
+  }
+  artifact "Respaldo automatico diario\ncon retencion del proveedor" as backup
+}
+
+cloud "GitHub" as gh {
+  component "OAuth 2.0 / OIDC" as ghauth
+  component "REST API v3\n(metadatos de repositorios)" as ghapi
+  component "GitHub Actions\n(construccion y despliegue)" as ghact
+  artifact "Registro de imagenes\nghcr.io/<org>/devnet-api" as ghcr
+}
+
+cloud "Grafana Cloud" as grafana {
+  component "Prometheus\n(recoleccion remota)" as prom
+  component "Tableros y alertas" as dash
+}
+
+cliente --> ws : HTTPS 443\nTLS 1.3
+ws --> pg : TLS\nPostgreSQL 5432\nHikariCP, max 5 conexiones
+ws --> storage : HTTPS\nURLs firmadas
+ws --> ghauth : HTTPS\nAuthorization Code + PKCE
+ws --> ghapi : HTTPS\ntoken del usuario
+prom --> ws : HTTPS\nGET /actuator/prometheus cada 60 s
+ghact --> ghcr : publica imagen
+ghact ..> ws : despliega\n(deploy hook)
+pg --> backup : respaldo diario
+
+note as N_ENTORNOS #E8F5E9
+  <b>Entornos separados (lineamientos 7.3)</b>
+
+  Local        docker-compose: api + postgres:16 + prometheus + grafana
+  Pruebas      Testcontainers efimero por ejecucion del pipeline
+  Integracion  Render devnet-api-test  +  Supabase devnet-test
+  Produccion   Render devnet-api       +  Supabase devnet-prod
+
+  Son proyectos Supabase distintos, no esquemas del mismo,
+  para no reutilizar credenciales entre entornos.
+  Secretos en variables de entorno de Render y en GitHub Secrets;
+  nunca en el repositorio.
+end note
+
+note as N_CONFIG #FFF3E0
+  <b>Configuracion inyectada por entorno</b>
+  SPRING_PROFILES_ACTIVE
+  DATASOURCE_URL / DATASOURCE_USUARIO / DATASOURCE_CLAVE
+  JWT_CLAVE_PRIVADA / JWT_CLAVE_PUBLICA
+  GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET
+  SUPABASE_URL / SUPABASE_SERVICE_KEY
+  CIFRADO_MFA_CLAVE
+  CORS_ORIGENES_PERMITIDOS
+
+  Swagger UI queda deshabilitado en el perfil de produccion.
+end note
+
+@enduml

@@ -1,0 +1,45 @@
+# ===========================================================================
+# Perfil PROD - el que activa la imagen Docker.
+#
+# Sin este archivo, SPRING_PROFILES_ACTIVE=prod del Dockerfile no haria nada:
+# el contenedor arrancaria con los valores por defecto de application.yml, que
+# apuntan a localhost con postgres:postgres y dejan Swagger UI abierto.
+#
+# Todo llega por variable de entorno. Si falta una, la aplicacion NO arranca:
+# es preferible un fallo ruidoso al desplegar que un servicio corriendo con una
+# credencial por defecto.
+# ===========================================================================
+
+spring:
+  datasource:
+    # Sin valor por defecto a proposito: aqui no puede haber un fallback a local.
+    # sslmode=require va en la URL (lineamiento 5.3: cifrar comunicaciones con TLS).
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+
+springdoc:
+  # Swagger UI cerrado en produccion: es superficie de exploracion, no de operacion.
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false
+
+logging:
+  level:
+    root: WARN
+    com.codefactory.devnet: INFO
+    # Nunca DEBUG aqui: expondria parametros de consulta con correos y contenido
+    # de mensajes privados (lineamiento 6.2).
+    org.hibernate.SQL: WARN
+
+devnet:
+  api:
+    url-servidor: ${API_URL}
+  seguridad:
+    origenes-permitidos: ${CORS_ORIGENES}
+    # Claves RSA persistentes. Sin ellas el backend genera un par efimero en cada
+    # arranque y todos los tokens emitidos dejan de valer al reiniciar.
+    jwt:
+      clave-privada: ${JWT_CLAVE_PRIVADA}
+      clave-publica: ${JWT_CLAVE_PUBLICA}

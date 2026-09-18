@@ -1,5 +1,7 @@
 package com.codefactory.devnet.shared.api;
 
+import com.codefactory.devnet.shared.audit.EventoAuditoria;
+import com.codefactory.devnet.shared.audit.RegistroAuditoria;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -9,7 +11,10 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -20,6 +25,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Traduce toda excepcion al cuerpo unico de {@link RespuestaError}.
@@ -41,6 +47,12 @@ import java.util.List;
 public class ManejadorGlobalErrores {
 
     private static final Logger log = LoggerFactory.getLogger(ManejadorGlobalErrores.class);
+
+    private final RegistroAuditoria auditoria;
+
+    public ManejadorGlobalErrores(RegistroAuditoria auditoria) {
+        this.auditoria = auditoria;
+    }
 
     // ------------------------------------------------------------------
     // Reglas de negocio
@@ -121,10 +133,42 @@ public class ManejadorGlobalErrores {
         // filtros, que SeguridadConfig redirige a este manejador, y el de
         // @PreAuthorize, que lanza desde el interceptor de method security. Un solo
         // punto evita auditar dos veces o ninguna.
+        UUID actor = actorAutenticado();
+
+        auditoria.registrar(EventoAuditoria.accesoDenegado(
+                req.getMethod() + " " + req.getRequestURI(), actor, IpCliente.de(req)));
+
         // Nunca se registra el token ni las credenciales (lineamiento 6.2).
-        log.warn("Acceso denegado en {} {}", req.getMethod(), req.getRequestURI());
+        log.warn("Acceso denegado en {} {} para actor {}",
+                req.getMethod(), req.getRequestURI(), actor);
 
         return construir(CodigoErrorComun.ACCESO_DENEGADO, null, List.of(), req);
+    }
+
+    /**
+     * Identificador del usuario de la peticion, leido del contexto de seguridad.
+     *
+     * <p>Se lee aqui y no a traves de {@code UsuarioDirectorio} a proposito: este
+     * manejador vive en {@code shared}, que es el kernel, y no puede depender de
+     * ningun modulo de negocio. El {@code sub} del JWT ya es el identificador, asi
+     * que no hace falta preguntarle a nadie.</p>
+     *
+     * <p>Devuelve {@code null} cuando la peticion es anonima, que es informacion util:
+     * distingue "alguien sin sesion toco una puerta cerrada" de "este usuario intento
+     * algo que no le corresponde".</p>
+     */
+    private UUID actorAutenticado() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof Jwt jwt)) {
+            return null;
+        }
+        try {
+            return UUID.fromString(jwt.getSubject());
+        } catch (IllegalArgumentException ex) {
+            // Un 'sub' que no es UUID no deberia existir, pero auditar es lo ultimo
+            // que debe romper una peticion.
+            return null;
+        }
     }
 
     // ------------------------------------------------------------------

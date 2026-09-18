@@ -1,5 +1,6 @@
 package com.codefactory.devnet.config;
 
+import com.codefactory.devnet.shared.cache.CachesDevNet;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
@@ -25,9 +26,6 @@ import java.util.List;
 @Configuration
 public class CacheConfig {
 
-    public static final String CATALOGO_TECNOLOGIAS = "catalogoTecnologias";
-    public static final String PERMISOS_POR_ROL = "permisosPorRol";
-
     @Bean
     public CacheManager gestorCache() {
         CaffeineCacheManager gestor = new CaffeineCacheManager();
@@ -35,7 +33,12 @@ public class CacheConfig {
                 .maximumSize(500)
                 .expireAfterWrite(Duration.ofMinutes(30))
                 .recordStats());      // expone metricas a Micrometer
-        gestor.setCacheNames(List.of(CATALOGO_TECNOLOGIAS, PERMISOS_POR_ROL));
+
+        // Los nombres viven en shared: quien los anota con @Cacheable es un modulo de
+        // negocio, y un modulo no puede importar config (regla 7).
+        gestor.setCacheNames(List.of(
+                CachesDevNet.CATALOGO_TECNOLOGIAS,
+                CachesDevNet.PERMISOS_POR_ROL));
 
         // Sin caches dinamicas: si un @Cacheable nombra una cache no declarada
         // arriba, debe fallar en el arranque y no crearla en silencio.

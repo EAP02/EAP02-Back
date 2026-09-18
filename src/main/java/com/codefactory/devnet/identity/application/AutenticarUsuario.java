@@ -1,15 +1,18 @@
 package com.codefactory.devnet.identity.application;
 
-import com.codefactory.devnet.config.PropiedadesDevNet;
 import com.codefactory.devnet.identity.domain.CodigoErrorIdentidad;
 import com.codefactory.devnet.identity.domain.EmisorTokens;
 import com.codefactory.devnet.identity.domain.EstadoUsuario;
 import com.codefactory.devnet.identity.domain.RepositorioUsuarios;
 import com.codefactory.devnet.identity.domain.Usuario;
 import com.codefactory.devnet.shared.api.ExcepcionNegocio;
+import com.codefactory.devnet.shared.audit.EventoAuditoria;
+import com.codefactory.devnet.shared.audit.RegistroAuditoria;
+import com.codefactory.devnet.shared.config.PropiedadesDevNet;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.Optional;
 
 /**
@@ -23,41 +26,52 @@ public class AutenticarUsuario {
 
     private final RepositorioUsuarios usuarios;
     private final EmisorTokens emisor;
+    private final EmitirRefresco emisorRefresco;
     private final PasswordEncoder codificador;
+    private final RegistroAuditoria auditoria;
     private final PropiedadesDevNet propiedades;
 
     public AutenticarUsuario(RepositorioUsuarios usuarios,
                              EmisorTokens emisor,
+                             EmitirRefresco emisorRefresco,
                              PasswordEncoder codificador,
+                             RegistroAuditoria auditoria,
                              PropiedadesDevNet propiedades) {
         this.usuarios = usuarios;
         this.emisor = emisor;
+        this.emisorRefresco = emisorRefresco;
         this.codificador = codificador;
+        this.auditoria = auditoria;
         this.propiedades = propiedades;
     }
 
     /**
-     * @param correo dato personal: no se registra en el log
-     * @param clave  en claro, solo en memoria y solo durante esta llamada
-     * @param ip     origen de la solicitud; reservado para trazabilidad posterior
+     * @param correo        dato personal: no se registra en el log
+     * @param clave         en claro, solo en memoria y solo durante esta llamada
+     * @param ip            origen de la solicitud; queda en la familia del refresco
+     * @param agenteUsuario cabecera User-Agent, para distinguir dispositivos al
+     *                      investigar una familia
      */
-    public Resultado ejecutar(String correo, String clave, String ip) {
+    public Resultado ejecutar(String correo, String clave, String ip, String agenteUsuario) {
         Optional<Usuario> encontrado = usuarios.porCorreo(correo);
 
         // Usuario inexistente y clave incorrecta devuelven el MISMO codigo. Dos
         // respuestas distintas permitirian enumerar cuentas registradas probando
         // correos, que es el primer paso de un ataque dirigido.
         if (encontrado.isEmpty()) {
+            auditoria.registrar(EventoAuditoria.inicioSesionFallido(correo, ip));
             throw new ExcepcionNegocio(CodigoErrorIdentidad.AUTH_CREDENCIALES_INVALIDAS);
         }
 
         Usuario usuario = encontrado.get();
 
         if (usuario.estaBloqueada()) {
+            auditoria.registrar(EventoAuditoria.cuentaBloqueada(usuario.id(), ip));
             throw new ExcepcionNegocio(CodigoErrorIdentidad.AUTH_CUENTA_BLOQUEADA);
         }
 
         if (usuario.estado() == EstadoUsuario.DESACTIVADO) {
+            auditoria.registrar(EventoAuditoria.inicioSesionFallido(correo, ip));
             throw new ExcepcionNegocio(CodigoErrorIdentidad.AUTH_CUENTA_DESACTIVADA);
         }
 
@@ -70,6 +84,10 @@ public class AutenticarUsuario {
             // la peticion, y sin esto el contador nunca subiria.
             usuarios.guardarEstadoAcceso(usuario);
 
+            auditoria.registrar(quedaBloqueada
+                    ? EventoAuditoria.cuentaBloqueada(usuario.id(), ip)
+                    : EventoAuditoria.inicioSesionFallido(correo, ip));
+
             throw new ExcepcionNegocio(quedaBloqueada
                     ? CodigoErrorIdentidad.AUTH_CUENTA_BLOQUEADA
                     : CodigoErrorIdentidad.AUTH_CREDENCIALES_INVALIDAS);
@@ -77,11 +95,19 @@ public class AutenticarUsuario {
 
         usuario.registrarAccesoExitoso();
         usuarios.guardarEstadoAcceso(usuario);
+        auditoria.registrar(EventoAuditoria.inicioSesion(usuario.id(), ip));
+
         EmisorTokens.TokenAcceso token = emisor.emitir(usuario);
+
+        // Familia NUEVA: esto es un inicio de sesion, no una rotacion. Entrar desde otro
+        // dispositivo no debe invalidar las sesiones ya abiertas, y un reuso detectado en
+        // una familia no debe arrastrar a las demas.
+        String refresco = emisorRefresco.abrirSesion(
+                usuario.id(), Instant.now(), ip, agenteUsuario);
 
         // Un rol con MFA obligatorio se autentica, pero su token sale sin permisos.
         // Se avisa explicitamente para que el cliente sepa por que no puede nada.
-        return new Resultado(token, usuario, usuario.tieneMfaPendiente());
+        return new Resultado(token, refresco, usuario, usuario.tieneMfaPendiente());
     }
 
     /**
@@ -105,8 +131,12 @@ public class AutenticarUsuario {
     }
 
     /**
-     * @param mfaPendiente el rol exige segundo factor y el usuario no lo inscribio.
-     *                     El token es valido pero no concede ningun permiso.
+     * @param refrescoEnClaro va a la cookie, <b>nunca al cuerpo de la respuesta</b>
+     * @param mfaPendiente    el rol exige segundo factor y el usuario no lo inscribio.
+     *                        El token es valido pero no concede ningun permiso.
      */
-    public record Resultado(EmisorTokens.TokenAcceso token, Usuario usuario, boolean mfaPendiente) { }
+    public record Resultado(EmisorTokens.TokenAcceso token,
+                            String refrescoEnClaro,
+                            Usuario usuario,
+                            boolean mfaPendiente) { }
 }

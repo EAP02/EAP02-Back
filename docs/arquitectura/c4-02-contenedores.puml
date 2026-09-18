@@ -1,0 +1,45 @@
+@startuml c4-02-contenedores
+' DevNet - Red Social para Desarrolladores
+' C4 Nivel 2: Diagrama de Contenedores
+' Sin conexion a internet, reemplazar el include por: !include <C4/C4_Container>
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Nivel 2 - Contenedores: DevNet
+
+Person(desarrollador, "Desarrollador", "Miembro de la comunidad")
+Person(moderador, "Moderador", "Modera contenido reportado. MFA obligatorio.")
+Person(administrador, "Administrador", "Gestiona roles y consulta reportes. MFA obligatorio.")
+
+System_Boundary(devnet, "DevNet") {
+    Container(api, "API DevNet", "Java 17, Spring Boot 4.0.8, Docker", "Monolito modular. Concentra dominio, reglas de negocio, autorizacion RBAC y persistencia. Unico artefacto desplegable (ADR-001).")
+    Container(swagger, "Swagger UI", "springdoc-openapi", "Contrato OpenAPI 3.1 navegable. Es la superficie de demostracion del proyecto. Deshabilitado en produccion.")
+    ContainerDb(bd, "Base de datos DevNet", "PostgreSQL 16 en Supabase", "29 tablas: usuarios, sesiones, perfiles, publicaciones, comentarios, mensajes, auditoria y metricas diarias. Esquema versionado con Flyway (V1 a V5). Parte de las tablas modelan capacidades aun sin implementar.")
+    ContainerDb(archivos, "Almacen de archivos", "Supabase Storage", "Avatares de perfil e imagenes de proyecto. Se accede tras la interfaz AlmacenArchivos para contener la dependencia de proveedor.")
+}
+
+System_Ext(github, "GitHub", "OIDC/OAuth 2.0 y API de repositorios")
+System_Ext(grafana, "Grafana Cloud", "Metricas, tableros y alertas")
+
+Rel(desarrollador, swagger, "Explora y ejecuta operaciones", "HTTPS")
+Rel(moderador, api, "Resuelve reportes", "HTTPS/JSON")
+Rel(administrador, api, "Administra", "HTTPS/JSON")
+Rel(swagger, api, "Invoca", "HTTPS/JSON")
+
+Rel(api, bd, "Lee y escribe", "TLS, PostgreSQL 5432, HikariCP")
+Rel(api, archivos, "Sube y firma URLs de descarga", "HTTPS")
+Rel(api, github, "Valida identidad y consulta repositorios", "HTTPS / OAuth 2.0")
+Rel(grafana, api, "Recolecta /actuator/prometheus", "HTTPS")
+
+SHOW_LEGEND()
+
+note as N1
+  <b>Decisiones que sostienen este nivel</b>
+  ADR-001  Monolito modular: un solo contenedor desplegable,
+           un solo pipeline, una sola base de datos.
+  ADR-002  API REST versionada en /api/v1 con OpenAPI generado.
+  ADR-003  PostgreSQL administrado; Hibernate en ddl-auto=validate,
+           Flyway es la unica fuente de verdad del esquema.
+  ADR-004  La identidad vive en la API, no en Supabase Auth.
+end note
+
+@enduml

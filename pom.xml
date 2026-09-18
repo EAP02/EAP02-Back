@@ -21,7 +21,26 @@
         <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <springdoc.version>3.1.1</springdoc.version>
+        <!--
+          Spring Boot 4 ya no gestiona las versiones de Testcontainers en su BOM
+          (si lo hacia en la linea 3.x). Se importa el BOM propio en
+          dependencyManagement para no fijar version en cada artefacto.
+        -->
+        <testcontainers.version>1.20.4</testcontainers.version>
+        <archunit.version>1.3.0</archunit.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>${testcontainers.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
@@ -48,6 +67,17 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-cache</artifactId>
         </dependency>
+        <!--
+          Expone /actuator/health, que es de lo que dependen tres cosas: el
+          HEALTHCHECK del Dockerfile, la sonda de Render y el ping periodico que
+          evita que el plan gratuito duerma el servicio.
+          Por defecto Boot solo publica 'health' y sin detalle para quien no esta
+          autenticado, que es justo lo que queremos en produccion.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
@@ -57,6 +87,25 @@
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>${springdoc.version}</version>
         </dependency>
+        <!--
+          Flyway administra el esquema. Hibernate corre en ddl-auto=validate y solo
+          comprueba que las entidades correspondan a lo que Flyway construyo; si no
+          coinciden, la aplicacion no arranca (ADR-003).
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
+        </dependency>
+        <!--
+          Obligatorio. Desde Flyway 10 el soporte de cada motor vive en su propio
+          modulo y el nucleo no sabe hablar con ninguno: sin esto el arranque falla
+          con "Unsupported Database: PostgreSQL 16.x".
+        -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
@@ -65,6 +114,20 @@
         <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcprov-jdk18on</artifactId>
+            <version>1.78.1</version>
+        </dependency>
+        <!--
+          Obligatorio para leer claves en formato PEM.
+          bcprov trae los algoritmos (lo que necesita Argon2PasswordEncoder); bcpkix
+          trae las utilidades de PKIX, entre ellas JcaPEMKeyConverter, que es lo que
+          usa Nimbus en parseFromPEMEncodedObjects.
+          Sin esta dependencia el arranque solo falla CUANDO hay claves configuradas:
+          en local, con el par efimero, nunca se llega a parsear un PEM.
+          La version debe coincidir con la de bcprov.
+        -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk18on</artifactId>
             <version>1.78.1</version>
         </dependency>
 
@@ -76,6 +139,41 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+          Boot 4 saco las anotaciones de test a modulos propios: @AutoConfigureMockMvc
+          ya no viene con spring-boot-starter-test.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Lineamiento 3.5: integracion contra base de datos real o contenedor -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Verifica las fronteras entre modulos -->
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <version>${archunit.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
