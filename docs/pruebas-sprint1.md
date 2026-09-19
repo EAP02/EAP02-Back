@@ -531,7 +531,7 @@ Para una comprobación exhaustiva de columnas y restricciones está
 
 | Comprobación | Comando | Esperado |
 |---|---|---|
-| Swagger abierto (ADR-007) | `curl -s -o /dev/null -w '%{http_code}\n' $API/swagger-ui.html` | `200` |
+| Swagger abierto (ADR-007) | `curl -s -o /dev/null -w '%{http_code}\n' $API/swagger-ui.html` | `302` — redirige a `/swagger-ui/index.html`. Con `-L` da `200` |
 | Contrato OpenAPI accesible | `curl -s -o /dev/null -w '%{http_code}\n' $API/v3/api-docs` | `200` |
 | Métricas cerradas | `curl -s -o /dev/null -w '%{http_code}\n' $API/actuator/metrics` | `401` |
 | Salud abierta | `curl -s $API/actuator/health` | `{"status":"UP"}` |
