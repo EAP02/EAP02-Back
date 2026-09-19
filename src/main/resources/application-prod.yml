@@ -7,7 +7,7 @@
 #
 # Todo llega por variable de entorno. Si falta una, la aplicacion NO arranca:
 # es preferible un fallo ruidoso al desplegar que un servicio corriendo con una
-# credencial por defecto.
+# credencial por defecto
 # ===========================================================================
 
 spring:
