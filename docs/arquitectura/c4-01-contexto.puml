@@ -1,0 +1,45 @@
+@startuml c4-01-contexto
+' DevNet - Red Social para Desarrolladores
+' C4 Nivel 1: Diagrama de Contexto del Sistema
+' Sin conexion a internet, reemplazar el include por: !include <C4/C4_Context>
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title Nivel 1 - Contexto del sistema: DevNet
+
+Person(desarrollador, "Desarrollador", "Miembro de la comunidad. Declara su perfil tecnico y publica proyectos con sus repositorios.")
+Person(moderador, "Moderador", "Retira de la vista publica un proyecto, dejando el motivo por escrito. Requiere MFA.")
+Person(administrador, "Administrador", "Gestiona roles y catalogo de tecnologias, y consulta la auditoria. Requiere MFA.")
+
+System(devnet, "DevNet", "Red social especializada en desarrolladores. Expone una API REST versionada con perfiles tecnicos, publicacion de proyectos y control de acceso por rol.")
+
+System_Ext(github, "GitHub", "Proveedor de identidad OIDC/OAuth 2.0 y origen de metadatos de repositorios publicados.")
+System_Ext(supabase, "Supabase", "PostgreSQL administrado y almacenamiento de objetos para avatares e imagenes de proyecto.")
+System_Ext(observabilidad, "Grafana Cloud", "Recolecta metricas expuestas por la API y sirve tableros y alertas.")
+
+Rel(desarrollador, devnet, "Consume la API REST", "HTTPS/JSON")
+Rel(moderador, devnet, "Oculta contenido con motivo", "HTTPS/JSON")
+Rel(administrador, devnet, "Administra y consulta la auditoria", "HTTPS/JSON")
+
+Rel(devnet, github, "Autentica usuarios y lee metadatos de repositorios", "HTTPS / OAuth 2.0 + REST")
+Rel(desarrollador, github, "Autoriza el acceso a su cuenta", "HTTPS / OAuth 2.0")
+Rel(devnet, supabase, "Persiste datos y archivos", "TLS / PostgreSQL + HTTPS")
+Rel(devnet, observabilidad, "Expone metricas para recoleccion", "HTTPS / Prometheus")
+
+SHOW_LEGEND()
+
+note right of devnet
+  El perfil avanzado marca el frontend como N/A (lineamientos, 1.3).
+  Los actores consumen la API a traves de Swagger UI y de
+  colecciones de peticiones; no existe cliente web propio.
+end note
+
+note bottom of devnet
+  <b>Alcance construido</b>
+  El caso de negocio contempla ademas discusiones, comentarios,
+  mensajeria privada y reportes de comunidad. Esas capacidades
+  estan en el modelo de datos (docs/bd/02-modelo-logico.md) pero
+  no tienen implementacion: lo construido son perfiles tecnicos,
+  proyectos y el modulo transversal de identidad.
+end note
+
+@enduml

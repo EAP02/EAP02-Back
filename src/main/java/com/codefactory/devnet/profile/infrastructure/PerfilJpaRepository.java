@@ -14,17 +14,27 @@ public interface PerfilJpaRepository extends JpaRepository<PerfilEntity, UUID> {
      * <p>Publicar exige al menos una (regla R1). Se cuenta en la base en vez de cargar
      * la coleccion: solo interesa el numero.</p>
      */
-    @Query(value = "SELECT count(*) FROM perfil_habilidad WHERE usuario_id = :usuarioId",
+    @Query(value = "SELECT count(*) FROM perfil_tecnologia WHERE usuario_id = :usuarioId",
            nativeQuery = true)
     int contarTecnologias(@Param("usuarioId") UUID usuarioId);
 
     /**
-     * Si tiene identidad de GitHub vinculada.
+     * Si tiene identidad de GitHub <b>vinculada por OAuth</b>.
      *
-     * <p>Es lo que marca el perfil como verificado; sustituye por completo a la
+     * <p>Es lo que marca el perfil como verificado, y sustituye por completo a la
      * verificacion por correo (ADR-004).</p>
+     *
+     * <p>Consulta {@code identidad_externa}, <b>no</b> {@code perfil.url_github}. Son
+     * dos cosas distintas y confundirlas vaciaba la verificacion de sentido:
+     * {@code url_github} es un texto que el usuario escribe y puede apuntar a
+     * cualquiera, mientras que una fila en {@code identidad_externa} solo existe si
+     * GitHub confirmo la identidad en el flujo OAuth.</p>
      */
-    default boolean estaVerificado(UUID usuarioId) {
-        return findById(usuarioId).map(p -> p.getUrlGithub() != null).orElse(false);
-    }
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1 FROM identidad_externa
+                WHERE usuario_id = :usuarioId AND proveedor = 'GITHUB'
+            )
+            """, nativeQuery = true)
+    boolean estaVerificado(@Param("usuarioId") UUID usuarioId);
 }

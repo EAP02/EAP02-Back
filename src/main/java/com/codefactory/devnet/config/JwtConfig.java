@@ -55,8 +55,24 @@ public class JwtConfig {
                     y JWT_CLAVE_PUBLICA (ver .env.example).""");
             return generarEfimera();
         }
-        return RSAKey.parseFromPEMEncodedObjects(clavePublicaPem + "\n" + clavePrivadaPem)
+        return RSAKey.parseFromPEMEncodedObjects(
+                        normalizarPem(clavePublicaPem) + "\n" + normalizarPem(clavePrivadaPem))
                 .toRSAKey();
+    }
+
+    /**
+     * Devuelve los saltos de linea reales a un PEM que viajo en una variable de entorno.
+     *
+     * <p>Un PEM son varias lineas, pero una variable de entorno es una sola. La
+     * convencion es escribirlo con \n literales (barra invertida y ene), y el parser
+     * de PEM no los entiende: espera saltos de verdad. Sin esta conversion el
+     * despliegue falla con un error de formato que no dice nada util.</p>
+     *
+     * <p>Se aceptan tambien PEM con saltos reales, por si vienen de un gestor de
+     * secretos que si los preserva.</p>
+     */
+    private String normalizarPem(String pem) {
+        return pem.replace("\\n", "\n").trim();
     }
 
     @Bean
