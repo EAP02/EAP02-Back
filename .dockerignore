@@ -1,0 +1,22 @@
+# Lo que no debe entrar al contexto de construccion.
+# Reduce el tamano del contexto y, sobre todo, evita que un .env con credenciales
+# viaje dentro de la imagen.
+
+.env
+.env.*
+*.pem
+*.key
+
+target/
+.git/
+.gitignore
+.idea/
+.vscode/
+*.iml
+
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+README.md
+docs/

@@ -1,0 +1,130 @@
+@startuml uml-paquetes
+' DevNet - Diagrama de paquetes y componentes CON INTERFACES
+' Entregable de Sprint 1 (lineamientos, 3.7 - Arquitectura de Software)
+'
+' Refleja el codigo. Cada paquete existe bajo src/main/java/com/codefactory/devnet
+' y cada interfaz esta declarada con la firma que aparece aqui.
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam linetype ortho
+
+title Diagrama de paquetes con interfaces publicadas - com.codefactory.devnet
+
+package "shared" as SH #F4F4F4 {
+  package "shared.api" {
+    class ManejadorGlobalErrores <<RestControllerAdvice>>
+    class FiltroTraceId <<Filter>>
+    class ExcepcionNegocio
+    class RespuestaError <<record>>
+    class IpCliente <<utilidad>>
+  }
+  package "shared.audit" {
+    interface RegistroAuditoria {
+      + registrar(EventoAuditoria) : void
+    }
+  }
+  package "shared.config" {
+    class PropiedadesDevNet <<ConfigurationProperties>>
+  }
+  package "shared.cache" {
+    class CachesDevNet <<constantes>>
+  }
+}
+
+package "identity" as ID #FFF3E0 {
+  package "identity.api" {
+    interface UsuarioDirectorio {
+      + buscar(usuarioId) : Optional<UsuarioResumen>
+      + estaActivo(usuarioId) : boolean
+      + autenticado() : Optional<UsuarioResumen>
+    }
+    class UsuarioResumen <<record>>
+    class UsuarioRegistrado <<evento>>
+    class CookieRefresco
+  }
+  package "identity.domain" {
+    interface EmisorTokens
+    interface GeneradorTokenRefresco
+    interface RepositorioUsuarios
+    interface RepositorioTokensRefresco
+  }
+  package "identity.application" {}
+  package "identity.infrastructure" {}
+}
+
+package "profile" as PR #E8F5E9 {
+  package "profile.api" {
+    interface PerfilConsulta {
+      + buscar(usuarioId) : Optional<PerfilResumen>
+    }
+    interface PerfilPublicoConsulta {
+      + obtener(perfilId) : PerfilPublico
+    }
+  }
+  package "profile.domain" {
+    interface RepositorioPerfiles
+  }
+  package "profile.application" {}
+  package "profile.infrastructure" {}
+}
+
+package "project" as PJ #E3F2FD {
+  package "project.api" {
+    interface ProyectoPublicoConsulta {
+      + publicadosPor(autorId) : List<ProyectoPublico>
+    }
+    class PaginaKeyset<T> <<record>>
+  }
+  package "project.domain" {
+    interface RepositorioProyectos
+  }
+  package "project.application" {}
+  package "project.infrastructure" {}
+}
+
+package "config" as CF #FCE4EC {
+  class SeguridadConfig <<Configuration>>
+  class JwtConfig <<Configuration>>
+  class CacheConfig <<Configuration>>
+  class OpenApiConfig <<Configuration>>
+}
+
+' --- Entre modulos: siempre hacia el paquete api del destino (ADR-006)
+PR ..> ID : identity.api.UsuarioDirectorio\nidentity.api.UsuarioRegistrado
+PR ..> PJ : project.api.ProyectoPublicoConsulta
+PJ ..> ID : identity.api.UsuarioDirectorio
+
+' --- Hacia el kernel: todos, y nadie al reves (regla 4)
+ID ..> SH
+PR ..> SH
+PJ ..> SH
+CF ..> SH
+
+note bottom of CF
+  <b>config no recibe ninguna flecha desde un modulo</b>
+  Cablea el arranque y mira hacia abajo; una dependencia de
+  vuelta cerraria un ciclo. Ya paso: un @Configuration que
+  sembraba datos de referencia importaba identity.infrastructure.
+  Se resolvio moviendo esos datos a V1__baseline.sql.
+  La regla 7 de FronterasModularesTest lo impide ahora.
+end note
+
+note as N1
+  <b>Lo que este diagrama garantiza</b>
+  - Toda flecha entre modulos apunta a <b>api</b>: domain, application
+    e infrastructure son internos (ADR-006).
+  - Ninguna entidad JPA cruza una frontera de modulo.
+  - shared no depende de ningun modulo; config, de ninguno tampoco.
+  - El grafo es aciclico.
+  Las cuatro las verifica FronterasModularesTest en cada build.
+end note
+
+note as N2
+  <b>Modulos previstos y no construidos</b>
+  discussion, interaction, messaging, moderation y analytics
+  figuran en el ADR-001 y en el modelo de datos, pero no tienen
+  codigo. No se dibujan aqui: el diagrama describe el sistema
+  que existe.
+end note
+
+@enduml

@@ -1,0 +1,74 @@
+@startuml c4-03-componentes-api
+' DevNet - Red Social para Desarrolladores
+' C4 Nivel 3: Componentes dentro del contenedor "API DevNet"
+'
+' Este diagrama refleja el codigo, no el alcance previsto. Cada caja existe como
+' paquete bajo com.codefactory.devnet y cada flecha es un import verificable.
+' El §4.1 exige que los diagramas coincidan con el codigo desplegado.
+'
+' Sin conexion a internet, reemplazar el include por: !include <C4/C4_Component>
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Nivel 3 - Componentes del contenedor API DevNet
+
+Person(usuario, "Usuario", "Desarrollador, moderador o administrador")
+
+Container_Boundary(api, "API DevNet") {
+
+    Component(identity, "Identidad y acceso", "identity  [MODULO TRANSVERSAL]", "Registro, inicio de sesion local, emision de JWT RS256 y rotacion del token de refresco por familia con deteccion de reuso, resolucion de permisos RBAC.")
+
+    Component(profile, "Perfiles tecnicos", "profile", "Perfil del desarrollador y stack declarado contra el catalogo de tecnologias, con nivel y anios.")
+
+    Component(project, "Proyectos", "project", "Publicacion de proyectos y repositorios, consulta publica paginada por keyset, y ocultamiento de una publicacion por un moderador.")
+
+    Component(shared, "Kernel compartido", "shared", "Filtro de traceId, manejador global de errores (ADR-005), registro de auditoria, propiedades de configuracion y nombres de cache. No depende de ningun modulo.")
+
+    Component(config, "Arranque", "config", "Cadena de seguridad, par RSA, gestor de caches y contrato OpenAPI. Cablea la aplicacion; ningun modulo depende de el (regla 7).")
+}
+
+ContainerDb(bd, "PostgreSQL 16", "Supabase", "29 tablas, esquema versionado con Flyway")
+System_Ext(github, "GitHub", "API de repositorios")
+
+Rel(usuario, identity, "Se registra, autentica y renueva sesion", "REST")
+Rel(usuario, profile, "Consulta y edita su perfil", "REST")
+Rel(usuario, project, "Publica proyectos y consulta el catalogo", "REST")
+
+' --- Dependencias entre modulos. Siempre hacia el paquete api del destino (ADR-006).
+Rel_D(profile, identity, "identity.api.UsuarioDirectorio: quien esta autenticado")
+Rel_D(profile, identity, "identity.api.UsuarioRegistrado: evento de alta")
+Rel_D(profile, project, "project.api.ProyectoPublicoConsulta: proyectos del perfil")
+Rel_D(project, identity, "identity.api.UsuarioDirectorio: autor y permisos")
+
+' --- Todos los modulos consumen el kernel.
+Rel_D(identity, shared, "Errores, auditoria, propiedades")
+Rel_D(profile, shared, "Errores")
+Rel_D(project, shared, "Errores")
+Rel_D(config, shared, "Propiedades y nombres de cache")
+
+Rel(identity, bd, "JPA")
+Rel(profile, bd, "JPA")
+Rel(project, bd, "JPA")
+Rel(shared, bd, "JDBC (auditoria: la tabla usa jsonb e inet)")
+
+SHOW_LEGEND()
+
+note as N1
+  <b>Regla de dependencia entre modulos (ADR-006)</b>
+  Toda flecha entre modulos apunta al paquete <b>api</b> del destino.
+  Los paquetes domain, application e infrastructure son internos y
+  ningun otro modulo puede importarlos. Tampoco cruzan entidades JPA.
+  El grafo es aciclico y ningun modulo depende de config.
+  FronterasModularesTest rompe el build si algo de esto se viola.
+end note
+
+note as N2
+  <b>Alcance</b>
+  El ADR-001 preveia ademas discussion, interaction, messaging,
+  moderation y analytics. No se construyeron. Lo unico de moderacion
+  que existe -ocultar una publicacion, con motivo obligatorio y
+  permiso publicacion:moderar- vive dentro de <b>project</b>.
+  Las tablas de los modulos no construidos si estan en el modelo de
+  datos: ver docs/bd/02-modelo-logico.md.
+end note
+
+@enduml

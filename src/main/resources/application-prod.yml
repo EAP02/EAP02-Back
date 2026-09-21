@@ -1,0 +1,57 @@
+# ===========================================================================
+# Perfil PROD - el que activa la imagen Docker.
+#
+# Sin este archivo, SPRING_PROFILES_ACTIVE=prod del Dockerfile no haria nada:
+# el contenedor arrancaria con los valores por defecto de application.yml, que
+# apuntan a localhost con postgres:postgres y dejan Swagger UI abierto.
+#
+# Todo llega por variable de entorno. Si falta una, la aplicacion NO arranca:
+# es preferible un fallo ruidoso al desplegar que un servicio corriendo con una
+# credencial por defecto.
+# ===========================================================================
+
+spring:
+  datasource:
+    # Sin valor por defecto a proposito: aqui no puede haber un fallback a local.
+    # sslmode=require va en la URL (lineamiento 5.3: cifrar comunicaciones con TLS).
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+
+springdoc:
+  # ADR-007: Swagger UI queda ABIERTO tambien en produccion, al reves de lo que
+  # decidio el ADR-002.
+  #
+  # El perfil avanzado no contempla frontend (lineamiento 1.3), asi que esta es la
+  # unica superficie de interaccion del producto. Cerrarla dejaba el entorno
+  # desplegado sin forma de demostrarse, y las demostraciones ocurren contra Render.
+  #
+  # Exponer el contrato no concede acceso: cada operacion protegida sigue exigiendo
+  # su permiso, verificado en el servidor. Lo que se asume es la enumeracion de
+  # endpoints, aceptable con datos que no son reales.
+  #
+  # Si este proyecto saliera del ambito academico, revisar el ADR-007 ANTES de
+  # desplegar: volver al comportamiento anterior es poner estas dos en false.
+  swagger-ui:
+    enabled: true
+  api-docs:
+    enabled: true
+
+logging:
+  level:
+    root: WARN
+    com.codefactory.devnet: INFO
+    # Nunca DEBUG aqui: expondria parametros de consulta con correos y contenido
+    # de mensajes privados (lineamiento 6.2).
+    org.hibernate.SQL: WARN
+
+devnet:
+  api:
+    url-servidor: ${API_URL}
+  seguridad:
+    origenes-permitidos: ${CORS_ORIGENES}
+    # Claves RSA persistentes. Sin ellas el backend genera un par efimero en cada
+    # arranque y todos los tokens emitidos dejan de valer al reiniciar.
+    jwt:
+      clave-privada: ${JWT_CLAVE_PRIVADA}
+      clave-publica: ${JWT_CLAVE_PUBLICA}

@@ -1,4 +1,4 @@
-package com.codefactory.devnet.config;
+package com.codefactory.devnet.shared.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -10,6 +10,14 @@ import java.util.List;
  *
  * <p>Todo valor sensible llega por variable de entorno y nunca se versiona.
  * Ver {@code .env.example} y el lineamiento 7.3.</p>
+ *
+ * <p><b>Vive en {@code shared} y no en {@code config} a proposito.</b> Los modulos de
+ * negocio necesitan leer estos valores, y la regla 4 de {@code FronterasModularesTest}
+ * prohibe que {@code shared} dependa de un modulo: colgarla del kernel hace que la
+ * dependencia solo pueda ir de los modulos hacia aqui. Cuando estaba en {@code config}
+ * esa direccion era una costumbre, no un contrato, y ya se rompio una vez: un
+ * {@code @Configuration} que inicializaba datos de referencia importo
+ * {@code identity.infrastructure} y cerro el ciclo {@code config <-> identity}.</p>
  */
 @ConfigurationProperties(prefix = "devnet")
 public record PropiedadesDevNet(

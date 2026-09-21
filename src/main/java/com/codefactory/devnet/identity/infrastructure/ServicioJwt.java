@@ -1,8 +1,8 @@
 package com.codefactory.devnet.identity.infrastructure;
 
-import com.codefactory.devnet.config.PropiedadesDevNet;
 import com.codefactory.devnet.identity.domain.EmisorTokens;
 import com.codefactory.devnet.identity.domain.Usuario;
+import com.codefactory.devnet.shared.config.PropiedadesDevNet;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;

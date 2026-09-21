@@ -1,6 +1,8 @@
 # Credenciales
 .env
 .env.*
+# La plantilla SI se versiona: es la lista de variables a definir, sin valores reales.
+!.env.example
 *.pem
 *.key
 *.p12

@@ -1,0 +1,46 @@
+# =============================================================================
+#  DevNet - entorno de desarrollo local
+#
+#  Levanta solo la base de datos. La aplicacion se ejecuta desde el IDE o con
+#  mvn spring-boot:run, que es mucho mas rapido de iterar que reconstruir una
+#  imagen en cada cambio.
+#
+#      docker compose up -d
+#      mvn spring-boot:run
+#
+#  Las credenciales coinciden con los valores por defecto de application.yml
+#  (DATABASE_USERNAME:postgres / DATABASE_PASSWORD:postgres / base devnet), asi
+#  que no hace falta definir ninguna variable de entorno para trabajar en local.
+#  Son credenciales de una base desechable: no tienen valor fuera de tu maquina.
+# =============================================================================
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: devnet-db
+    environment:
+      POSTGRES_DB: devnet
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      # Mismo collation que Supabase, para que un plan de ejecucion medido en
+      # local signifique algo respecto al de integracion.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - datos-postgres:/var/lib/postgresql/data
+    command:
+      - "postgres"
+      # Registra toda consulta que pase de medio segundo: es el insumo del
+      # analisis de indices de docs/bd/04-indices.md.
+      - "-c"
+      - "log_min_duration_statement=500"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d devnet"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  datos-postgres:
