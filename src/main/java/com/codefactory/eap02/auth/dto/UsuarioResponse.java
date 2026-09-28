@@ -1,4 +1,4 @@
-package com.codefactory.eap02.auth.DTO;
+package com.codefactory.eap02.auth.dto;
 
 import com.codefactory.eap02.auth.domain.Usuario;
 import java.time.Instant;

@@ -1,4 +1,4 @@
-package com.codefactory.eap02.auth.DTO;
+package com.codefactory.eap02.auth.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

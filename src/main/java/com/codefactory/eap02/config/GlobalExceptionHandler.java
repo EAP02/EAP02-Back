@@ -1,6 +1,6 @@
 package com.codefactory.eap02.config;
 
-import com.codefactory.eap02.auth.DTO.ErrorResponse;
+import com.codefactory.eap02.auth.dto.ErrorResponse;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

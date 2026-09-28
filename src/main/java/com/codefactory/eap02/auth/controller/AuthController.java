@@ -1,6 +1,6 @@
 package com.codefactory.eap02.auth.controller;
 
-import com.codefactory.eap02.auth.DTO.*;
+import com.codefactory.eap02.auth.dto.*;
 import com.codefactory.eap02.auth.service.AuthService;
 import com.codefactory.eap02.auth.service.EmailAlreadyExistsException;
 import com.codefactory.eap02.auth.service.LoginOutcome;
@@ -18,7 +18,7 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest req) {
+    public ResponseEntity<Object> register(@Valid @RequestBody RegisterRequest req) {
         try {
             var u = authService.register(req.email(), req.password());
             return ResponseEntity.status(HttpStatus.CREATED).body(UsuarioResponse.from(u));
@@ -29,7 +29,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest req) {
+    public ResponseEntity<Object> login(@Valid @RequestBody LoginRequest req) {
         LoginOutcome outcome = authService.login(req.email(), req.password());
 
         if (outcome.locked()) {
