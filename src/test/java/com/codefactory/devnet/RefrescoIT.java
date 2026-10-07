@@ -32,8 +32,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * prueba envuelta en una transaccion, la mitad del estado se revierte y la otra mitad no,
  * y las comprobaciones dejan de significar nada. Se limpia a mano al final.</p>
  *
- * <p><b>Requiere Docker.</b> Y, mientras el {@code maven-failsafe-plugin} siga fuera del
- * {@code pom.xml}, esta clase no la ejecuta nadie: Surefire solo recoge {@code *Test}.</p>
+ * <p><b>Requiere Docker.</b> La ejecuta el {@code maven-failsafe-plugin} en
+ * {@code ./mvnw verify}; {@code ./mvnw test} no, porque Surefire solo recoge {@code *Test}.</p>
  */
 @PruebaIntegracion
 @Transactional(propagation = Propagation.NOT_SUPPORTED)

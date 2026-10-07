@@ -36,8 +36,21 @@ Swagger UI: <http://localhost:8080/swagger-ui.html>
 ./mvnw test      # unitarias y de arquitectura. No necesitan Docker
 ```
 
-Las pruebas de integración terminan en `IT` y usan Testcontainers. Hoy **no las ejecuta
-nadie**: Surefire solo recoge `*Test` y el `maven-failsafe-plugin` no está en el `pom.xml`.
+Las pruebas de integración terminan en `IT`, usan Testcontainers y las ejecuta el
+`maven-failsafe-plugin` en la fase `verify`:
+
+```bash
+./mvnw verify    # unitarias + integración. Necesita Docker
+```
+
+Con Podman en lugar de Docker:
+
+```bash
+systemctl --user start podman.socket
+export DOCKER_HOST=unix:///run/user/$(id -u)/podman/podman.sock
+export TESTCONTAINERS_RYUK_DISABLED=true
+./mvnw verify
+```
 
 ## Configuración para integración y producción
 
