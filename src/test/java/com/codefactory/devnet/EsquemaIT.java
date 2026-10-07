@@ -39,6 +39,8 @@ class EsquemaIT {
                 SELECT count(*)
                 FROM information_schema.tables
                 WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+                  -- La tabla de control de Flyway no forma parte del modelo logico.
+                  AND table_name <> 'flyway_schema_history'
                 """, Integer.class);
 
         assertThat(tablas)
