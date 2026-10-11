@@ -84,6 +84,17 @@ respalda tanto el modelo lógico como los índices.
 | P13, P14, P15 | Tabla `metricas_diarias` preconsolidada por `sp_consolidar_metricas_diarias`. **Los reportes no agregan en vivo sobre las tablas transaccionales** |
 | P16 | Tabla `auditoria` con `jsonb` de antes y después, alimentada por triggers, con `trace_id` para unir con los logs de la aplicación |
 
+> **P04 implementada (sprint 2, HU-09).** `GET /api/v1/proyectos?q=&tecnologia=` usa
+> `busqueda_tsv @@ websearch_to_tsquery('spanish', ...)` sobre `ix_publicacion_busqueda`,
+> y el filtro por tecnología un `EXISTS` sobre `ix_publicacion_tecnologia_inverso`
+> (P03). Se aparta de la consulta de [05-consultas-no-triviales.sql](05-consultas-no-triviales.sql)
+> en una cosa: **ordena por fecha de publicación, no por la puntuación combinada**. La
+> puntuación incluye un término de frescura que depende de `now()`, así que cambia entre
+> una página y la siguiente y no admite paginación por cursor estable; el criterio de
+> aceptación pide una lista paginada. La puntuación sigue documentada para cuando se
+> quiera un orden por relevancia sin paginar (por ejemplo, un «mejores resultados»).
+> Ver `RepositorioProyectosJpa.buscar`.
+
 La decisión más consecuente de esta lista es la de P13–P15: separar el camino de lectura
 analítica del transaccional. Agregar en vivo sobre `publicacion`, `comentario` y `mensaje`
 para un rango de 90 días funcionaría con datos de demostración y se caería con volumen

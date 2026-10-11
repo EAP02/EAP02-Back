@@ -47,6 +47,18 @@ public interface RepositorioProyectos {
      */
     boolean transicionarEstado(UUID publicacionId, String estadoNuevo, UUID actorId, String motivo);
 
+    /**
+     * HU-09: proyectos publicados que cumplen los criterios, del mas reciente al mas
+     * antiguo, paginados por cursor.
+     *
+     * <p>Mismo orden y mismo cursor que {@link #deAutor}: ningun resultado se repite ni
+     * se salta entre paginas aunque alguien publique mientras se recorren.</p>
+     *
+     * @param texto        termino de texto completo, o {@code null} para no filtrar
+     * @param tecnologiaId tecnologia que debe tener el proyecto, o {@code null}
+     */
+    PaginaKeyset<ProyectoResumen> buscar(String texto, Short tecnologiaId, String cursor, int limite);
+
     // ------------------------------------------------------------------
     // HU-08: edicion
     // ------------------------------------------------------------------

@@ -203,6 +203,25 @@ pintar el error junto al campo correcto.
 cursor y no por desplazamiento, para que insertar un proyecto nuevo no descoloque las
 páginas siguientes.
 
+### 5.0 · Explorar y buscar · `GET /api/v1/proyectos`
+
+Sin token. Primero el catálogo, `GET /api/v1/tecnologias`, para ver los `slug`
+disponibles. Después:
+
+| Parámetros | Esperado | HU |
+|---|---|---|
+| ninguno | Todos los proyectos publicados, del más reciente al más antiguo | HU-09 |
+| `q=plantilla` | El «Motor de plantillas» del paso 5: el diccionario en español une singular y plural | HU-09.1 |
+| `q=plantilla&limite=1` | Una fila, `hayMas: true` y un `cursorSiguiente` para pedir la siguiente | HU-09.1 |
+| `tecnologia=java` | Solo proyectos con la etiqueta Java | HU-09.2 |
+| `q=plantilla&tecnologia=rust` | `200`, `contenido: []` y un `mensaje` que sugiere quitar el filtro | HU-09.3 |
+| `tecnologia=cobol` | `200`, vacío, y el mensaje dice que esa tecnología no está en el catálogo | HU-09.3 |
+
+**Qué señalar:** sin resultados la respuesta es `200`, no `404`: la búsqueda funcionó, solo
+que no hay nada. Y el mensaje cambia según lo buscado, porque el consejo útil es distinto
+en cada caso. La búsqueda la hace PostgreSQL sobre una columna `tsvector` generada con
+índice GIN (P04 de `docs/bd`).
+
 ### 5.1 · Editar un proyecto · `PUT /api/v1/proyectos/{proyectoId}`
 
 Con el token de **ana** y el `id` guardado en el paso 5. Se envía el proyecto completo:

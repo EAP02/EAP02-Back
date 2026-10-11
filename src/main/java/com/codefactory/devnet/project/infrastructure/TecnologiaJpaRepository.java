@@ -19,4 +19,7 @@ public interface TecnologiaJpaRepository extends JpaRepository<TecnologiaEntity,
     List<TecnologiaEntity> findByIdInAndAprobadaTrue(Set<Short> ids);
 
     Optional<TecnologiaEntity> findBySlug(String slug);
+
+    /** HU-09: el catalogo que se ofrece como filtro, agrupado como se mostraria. */
+    List<TecnologiaEntity> findByAprobadaTrueOrderByCategoriaAscNombreAsc();
 }
