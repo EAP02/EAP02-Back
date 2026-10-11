@@ -107,6 +107,74 @@ public class RepositorioProyectosJpa implements RepositorioProyectos {
                 r -> Cursor.codificar(r.publicadoEn(), r.id()));
     }
 
+    /**
+     * HU-09: busqueda por texto completo y filtro por tecnologia.
+     *
+     * <p><b>SQL construido segun los criterios presentes</b>, en vez de una consulta
+     * fija con {@code (:texto IS NULL OR ...)}. Con la forma fija, PostgreSQL acaba
+     * usando un plan generico que tiene que servir para ambos casos, y ese plan no puede
+     * apoyarse en el indice GIN. Aqui cada condicion solo aparece si aplica, y cada una
+     * tiene su indice:</p>
+     * <ul>
+     *   <li>texto: {@code busqueda_tsv @@ websearch_to_tsquery(...)} sobre
+     *       {@code ix_publicacion_busqueda} (GIN), la consulta P04 de
+     *       {@code docs/bd};</li>
+     *   <li>tecnologia: {@code EXISTS} sobre {@code ix_publicacion_tecnologia_inverso};</li>
+     *   <li>orden y cursor: la misma comparacion de tuplas que {@link #deAutor}.</li>
+     * </ul>
+     *
+     * <p>{@code websearch_to_tsquery} y no {@code to_tsquery}: acepta lo que una persona
+     * escribe en un buscador (comillas, {@code -excluir}, {@code or}) sin fallar con un
+     * error de sintaxis. Con la configuracion {@code spanish}, "plantilla" encuentra
+     * "plantillas". No busca por prefijo: "Jav" no encuentra "Java".</p>
+     *
+     * <p>Solo los valores van como parametros; el texto SQL lo arma este metodo con
+     * fragmentos constantes, asi que no hay via de inyeccion.</p>
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public PaginaKeyset<ProyectoResumen> buscar(String texto, Short tecnologiaId, String cursor, int limite) {
+        Cursor decodificado = Cursor.decodificar(cursor);
+
+        StringBuilder sql = new StringBuilder("""
+                SELECT p.id FROM publicacion p
+                WHERE p.tipo = 'PROYECTO'
+                  AND p.estado = 'PUBLICADO'
+                """);
+        List<Object> parametros = new java.util.ArrayList<>();
+
+        if (texto != null) {
+            sql.append(" AND p.busqueda_tsv @@ websearch_to_tsquery('spanish', ?)");
+            parametros.add(texto);
+        }
+        if (tecnologiaId != null) {
+            sql.append("""
+                     AND EXISTS (SELECT 1 FROM publicacion_tecnologia pt
+                                 WHERE pt.publicacion_id = p.id AND pt.tecnologia_id = ?)
+                    """);
+            parametros.add(tecnologiaId);
+        }
+        if (decodificado.fecha() != null) {
+            sql.append(" AND (p.publicado_en, p.id) < (?, ?)");
+            parametros.add(java.sql.Timestamp.from(decodificado.fecha()));
+            parametros.add(decodificado.id());
+        }
+
+        // Una fila de mas para saber si hay pagina siguiente sin contar la coleccion.
+        sql.append(" ORDER BY p.publicado_en DESC, p.id DESC LIMIT ?");
+        parametros.add(limite + 1);
+
+        List<UUID> ids = jdbc.queryForList(sql.toString(), UUID.class, parametros.toArray());
+
+        List<ProyectoResumen> resumenes = ids.stream()
+                .map(id -> proyectos.findById(id).map(this::aResumen).orElse(null))
+                .filter(java.util.Objects::nonNull)
+                .toList();
+
+        return PaginaKeyset.de(resumenes, limite,
+                r -> Cursor.codificar(r.publicadoEn(), r.id()));
+    }
+
     @Override
     @Transactional(readOnly = true)
     public boolean tecnologiasValidas(Set<Short> ids) {

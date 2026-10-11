@@ -311,13 +311,14 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/api/v1/auth/cierre-sesion
 
 ## 4 · Perfil
 
-El catálogo de tecnologías se consulta directamente en la base: **`GET /api/v1/tecnologias`
-está permitido en la configuración de seguridad pero no tiene controlador.** Es un endpoint
-fantasma pendiente, del mismo tipo que era `/auth/refresco`.
+El catálogo de tecnologías se consulta con `GET /api/v1/tecnologias`, público y sin token.
+
+> **Actualizado en el sprint 2 (HU-09).** Durante el sprint 1 este endpoint estaba
+> permitido en la configuración de seguridad pero no tenía controlador, y el catálogo se
+> consultaba directamente en la base.
 
 ```bash
-docker exec -i devnet-db psql -U postgres -d devnet \
-  -c "SELECT id, nombre FROM tecnologia WHERE aprobada ORDER BY id LIMIT 12;"
+curl -s $API/api/v1/tecnologias
 ```
 
 ```bash

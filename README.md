@@ -76,6 +76,8 @@ En IntelliJ IDEA pueden agregarse en **Run > Edit Configurations > Environment v
 6. `PUT /api/v1/proyectos/{proyectoId}` — editar; solo el autor o un moderador (HU-08)
 7. `POST /api/v1/proyectos/{proyectoId}/archivado` — eliminar, confirmando con el título (HU-08)
 8. `GET /api/v1/perfiles/{usuarioId}`
+9. `GET /api/v1/proyectos?q=&tecnologia=` — explorar y buscar, sin token (HU-09); los
+   `slug` de tecnología salen de `GET /api/v1/tecnologias`
 
 Al registrar una cuenta, `identity` publica `UsuarioRegistrado` y `profile` crea el perfil
 inicial. La lectura pública del perfil obtiene los proyectos desde

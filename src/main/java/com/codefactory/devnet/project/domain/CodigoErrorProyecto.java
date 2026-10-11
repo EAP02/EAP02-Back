@@ -91,7 +91,12 @@ public enum CodigoErrorProyecto implements CodigoError {
      */
     PROYECTO_CONFIRMACION_INVALIDA(
             422,
-            "La confirmacion no coincide con el titulo del proyecto.");
+            "La confirmacion no coincide con el titulo del proyecto."),
+
+    /** HU-09: el termino de busqueda no cumple el formato (demasiado largo). */
+    PROYECTO_BUSQUEDA_INVALIDA(
+            400,
+            "El termino de busqueda no es valido.");
 
     private final int estado;
     private final String mensaje;

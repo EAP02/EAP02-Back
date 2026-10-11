@@ -1,6 +1,7 @@
 package com.codefactory.devnet.project.api;
 
 import com.codefactory.devnet.project.application.ArchivarProyecto;
+import com.codefactory.devnet.project.application.BuscarProyectos;
 import com.codefactory.devnet.project.application.EditarProyecto;
 import com.codefactory.devnet.project.application.ListarProyectosDeAutor;
 import com.codefactory.devnet.project.application.OcultarPublicacion;
@@ -41,6 +42,7 @@ import java.util.UUID;
 /**
  * HU-07 (AB#17): publicacion y listado de proyectos.
  * HU-08 (AB#18): edicion y eliminacion de proyectos.
+ * HU-09 (AB#19): exploracion y busqueda de proyectos.
  */
 @RestController
 @RequestMapping("/api/v1/proyectos")
@@ -52,17 +54,20 @@ public class ProyectoController {
     private final OcultarPublicacion ocultar;
     private final EditarProyecto editar;
     private final ArchivarProyecto archivar;
+    private final BuscarProyectos buscar;
 
     public ProyectoController(PublicarProyecto publicar,
                               ListarProyectosDeAutor listar,
                               OcultarPublicacion ocultar,
                               EditarProyecto editar,
-                              ArchivarProyecto archivar) {
+                              ArchivarProyecto archivar,
+                              BuscarProyectos buscar) {
         this.publicar = publicar;
         this.listar = listar;
         this.ocultar = ocultar;
         this.editar = editar;
         this.archivar = archivar;
+        this.buscar = buscar;
     }
 
     /**
@@ -117,6 +122,56 @@ public class ProyectoController {
                 .created(URI.create("/api/v1/proyectos/" + resultado.id()))
                 .body(new RespuestaProyectoPublicado(
                         resultado.id(), resultado.titulo(), resultado.publicadoEn()));
+    }
+
+    /**
+     * HU-09 (AB#19): explorar y buscar proyectos. Cubre HU-09.1, HU-09.2 y HU-09.3.
+     *
+     * <p>{@code GET} sobre la coleccion con parametros de consulta, y no un recurso
+     * aparte como {@code /busqueda}: filtrar una coleccion es exactamente lo que
+     * expresan los parametros de consulta en REST (ADR-002). Lectura publica: la ruta ya
+     * esta abierta en {@code SeguridadConfig} para {@code GET /api/v1/proyectos/**}.</p>
+     */
+    @GetMapping
+    @SecurityRequirements
+    @Operation(
+            summary = "Explorar y buscar proyectos",
+            description = """
+                    Proyectos publicados, del mas reciente al mas antiguo, paginados por
+                    cursor. Los dos filtros son opcionales y se combinan:
+
+                    - `q`: busqueda por texto en titulo y descripcion. Entiende espanol
+                      ("plantilla" encuentra "plantillas") y la sintaxis de un buscador:
+                      `"frase exacta"`, `-excluir`, `java or kotlin`.
+                    - `tecnologia`: el `slug` de una tecnologia del catalogo
+                      (`GET /api/v1/tecnologias`). Devuelve solo los proyectos con esa
+                      etiqueta.
+
+                    Sin filtros, lista todos los proyectos publicados.
+
+                    **Sin resultados** la respuesta sigue siendo `200`, con `contenido`
+                    vacio y un `mensaje` que orienta segun lo buscado. Con resultados,
+                    `mensaje` es `null`.
+
+                    Para la pagina siguiente, devuelve `cursorSiguiente` tal cual en el
+                    parametro `cursor`.
+                    """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Pagina de resultados, o estado vacio con mensaje"),
+            @ApiResponse(responseCode = "400", description = "Termino de busqueda de mas de 100 caracteres",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class)))
+    })
+    public BuscarProyectos.ResultadoBusqueda buscar(
+            @Parameter(description = "Texto a buscar en titulo y descripcion (max. 100)", example = "plantillas")
+            @RequestParam(required = false) String q,
+            @Parameter(description = "Slug de la tecnologia del catalogo", example = "java")
+            @RequestParam(required = false) String tecnologia,
+            @Parameter(description = "Cursor devuelto por la pagina anterior")
+            @RequestParam(required = false) String cursor,
+            @Parameter(description = "Tamano de pagina (1-50, por defecto 20)")
+            @RequestParam(required = false) Integer limite) {
+
+        return buscar.ejecutar(q, tecnologia, cursor, limite);
     }
 
     /**
