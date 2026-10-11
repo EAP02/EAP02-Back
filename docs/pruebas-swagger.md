@@ -232,6 +232,35 @@ edición pasa con `200` y queda auditada como `UPDATE`.
 **Qué señalar:** hay dos capas. `@PreAuthorize` decide si tu rol edita proyectos; la
 política de dominio decide si puedes editar **este**, cosa que solo se sabe tras leerlo.
 
+### 5.2 · Eliminar un proyecto · `POST /api/v1/proyectos/{proyectoId}/archivado`
+
+Publica antes un proyecto de usar y tirar, con el título `Sistema de Gestión`, y guarda
+su `id`. Con el token de su autor, primero **sin cuerpo**.
+
+**Esperado:** `400` con `"errorCode":"PROYECTO_CONFIRMACION_REQUERIDA"`. Es la
+confirmación previa de HU-08.3: sin escribir el título no se elimina nada.
+
+Ahora con un título que no coincide, `{ "confirmacionTitulo": "Sistema de gestion" }` →
+**`422 PROYECTO_CONFIRMACION_INVALIDA`**. Y con el correcto:
+
+```json
+{ "confirmacionTitulo": "Sistema de Gestión" }
+```
+
+**Esperado:** `204`. El proyecto ya no aparece en `GET /api/v1/proyectos/autor/{autorId}`.
+
+Con el token de **otro desarrollador**, el mismo cuerpo correcto sobre otro proyecto de
+ana → **`403 PROYECTO_AJENO`**, auditado (HU-08.4). Conocer el título no da derecho a nada.
+
+**Qué señalar:** se archiva, no se borra. En Supabase:
+
+```sql
+SELECT estado_anterior, estado_nuevo, motivo, actor_id, creado_en
+  FROM historial_estado_publicacion
+ WHERE estado_nuevo = 'ARCHIVADO'
+ ORDER BY creado_en DESC LIMIT 3;
+```
+
 ### 6 · Autorización denegada · `POST /api/v1/proyectos/{proyectoId}/ocultamiento`
 
 Con el token de **ana**, que es `DESARROLLADOR`:
@@ -312,6 +341,8 @@ asume lo peor. Queda en auditoría como `REFRESCO_REUSADO`.
 | `403` al editar un perfil ajeno | Correcto: solo el titular edita su perfil | Es la demostración, no un fallo |
 | `403 PROYECTO_AJENO` al editar un proyecto | Correcto: no eres el autor ni moderador | Es la demostración de HU-08.2 |
 | `409 PROYECTO_NO_EDITABLE` al editar | El proyecto está oculto (paso 7 ya se hizo sobre él) | Edita antes de ocultar, o publica otro |
+| `422 PROYECTO_CONFIRMACION_INVALIDA` con el título bien escrito | Distingue mayúsculas y tildes | Copia el título tal cual del `GET` |
+| `409 PROYECTO_NO_EDITABLE` al eliminar | Ya se había eliminado: archivar es definitivo | Publica otro proyecto para la demo |
 | El refresco da `401 AUTH_REFRESCO_AUSENTE` | Swagger no envió la cookie | Lánzalo con `curl -b`, o desde la pestaña *Network* |
 | `500` en cualquier sitio | Mira el log de Render y busca el `traceId` de la respuesta | Es justo para lo que existe el `traceId` |
 

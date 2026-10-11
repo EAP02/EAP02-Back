@@ -11,7 +11,8 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Proyecto publicado por un desarrollador. Agregado de HU-07 y HU-08.
+ * Proyecto publicado por un desarrollador. Agregado de HU-07 (publicar) y HU-08 (editar
+ * y eliminar).
  *
  * <p>Sin JPA ni Spring: todas las reglas de abajo se prueban con un test unitario
  * puro, sin contexto ni base de datos.</p>
@@ -194,6 +195,54 @@ public class Proyecto {
                 buscaColaboradores,
                 publicadoEn,
                 estadoPublicacion);
+    }
+
+    /**
+     * HU-08.3: eliminar el proyecto, que en DevNet significa archivarlo (regla R3).
+     *
+     * <p>Archivar y no borrar: el proyecto desaparece de la vista publica pero su fila
+     * se conserva, con la transicion registrada en el historial. Asi los comentarios,
+     * reacciones y reputacion que lo referencien seguiran siendo coherentes.</p>
+     *
+     * <p><b>Confirmacion previa.</b> Hay que escribir el titulo exacto del proyecto,
+     * como al borrar un repositorio en GitHub. Un clic accidental o un cliente que
+     * repite la peticion no la lleva; quien la escribe sabe que esta eliminando
+     * <i>ese</i> proyecto y no otro. Se compara sin espacios sobrantes pero
+     * distinguiendo mayusculas: la confirmacion es deliberadamente exigente.</p>
+     *
+     * <p>El estado se comprueba antes que la confirmacion, por el mismo motivo que en
+     * {@link #editar}: no tiene sentido pedir que confirme algo que no se puede hacer.</p>
+     *
+     * @return el mismo proyecto en estado {@code ARCHIVADO}; este no se modifica
+     * @throws ExcepcionNegocio {@code PROYECTO_NO_EDITABLE} si ya esta archivado,
+     *                          {@code PROYECTO_CONFIRMACION_REQUERIDA} si no se confirmo,
+     *                          o {@code PROYECTO_CONFIRMACION_INVALIDA} si no coincide
+     */
+    public Proyecto archivar(String confirmacionTitulo) {
+        if (!estadoPublicacion.admiteArchivado()) {
+            throw new ExcepcionNegocio(
+                    CodigoErrorProyecto.PROYECTO_NO_EDITABLE,
+                    CodigoErrorProyecto.PROYECTO_NO_EDITABLE.mensajePorDefecto(),
+                    List.of(DetalleError.de("estado", estadoPublicacion.name(), "no_admite_archivado")));
+        }
+
+        String confirmacion = recortar(confirmacionTitulo);
+        if (confirmacion.isEmpty()) {
+            throw new ExcepcionNegocio(
+                    CodigoErrorProyecto.PROYECTO_CONFIRMACION_REQUERIDA,
+                    CodigoErrorProyecto.PROYECTO_CONFIRMACION_REQUERIDA.mensajePorDefecto(),
+                    List.of(DetalleError.de("confirmacionTitulo", "obligatorio")));
+        }
+        if (!confirmacion.equals(titulo)) {
+            throw new ExcepcionNegocio(
+                    CodigoErrorProyecto.PROYECTO_CONFIRMACION_INVALIDA,
+                    CodigoErrorProyecto.PROYECTO_CONFIRMACION_INVALIDA.mensajePorDefecto(),
+                    List.of(DetalleError.de("confirmacionTitulo", "no_coincide_con_el_titulo")));
+        }
+
+        return new Proyecto(id, autorId, titulo, descripcion, resumen, tecnologias,
+                urlRepositorio, estadoProyecto, licencia, urlDemo, buscaColaboradores,
+                publicadoEn, EstadoPublicacion.ARCHIVADO);
     }
 
     /**

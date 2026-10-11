@@ -16,7 +16,8 @@ import java.util.UUID;
  * ademas del permiso (lineamiento 6.2).</p>
  *
  * <p>Vive en el dominio, como {@code PoliticaPerfil}, para que ninguna ruta futura
- * pueda saltarsela. Eliminar un proyecto aplicara la misma regla.</p>
+ * pueda saltarsela. La aplican por igual la edicion (HU-08.2) y la eliminacion
+ * (HU-08.4).</p>
  */
 public final class PoliticaProyecto {
 

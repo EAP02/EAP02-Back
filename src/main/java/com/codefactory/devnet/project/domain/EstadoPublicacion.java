@@ -37,6 +37,15 @@ public enum EstadoPublicacion {
         return this == PUBLICADO;
     }
 
+    /**
+     * HU-08.3: desde donde se puede archivar, segun la maquina de estados de
+     * {@code proceso-principal.md}: {@code PUBLICADO -> ARCHIVADO} y
+     * {@code OCULTO -> ARCHIVADO}. Archivar algo ya archivado no es una transicion.
+     */
+    public boolean admiteArchivado() {
+        return this == PUBLICADO || this == OCULTO;
+    }
+
     /** Lo que cualquier visitante puede ver, sin sesion ni permisos. */
     public boolean esVisiblePublicamente() {
         return this == PUBLICADO;

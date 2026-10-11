@@ -60,6 +60,9 @@ public interface RepositorioProyectos {
      *
      * <p>No filtra por estado a proposito: decidir que hacer con un proyecto oculto o
      * archivado es una regla de negocio, no una consulta.</p>
+     *
+     * <p>Lo usan {@code EditarProyecto} y {@code ArchivarProyecto}: ambos necesitan el
+     * agregado completo antes de decidir si el actor puede modificarlo.</p>
      */
     Optional<Proyecto> paraEditar(UUID proyectoId);
 

@@ -70,7 +70,28 @@ public enum CodigoErrorProyecto implements CodigoError {
      */
     PROYECTO_NO_EDITABLE(
             409,
-            "El proyecto no se puede modificar en su estado actual.");
+            "El proyecto no se puede modificar en su estado actual."),
+
+    /**
+     * HU-08.3: se pidio eliminar sin confirmar.
+     *
+     * <p>400: a la peticion le falta un dato obligatorio. Es lo que evita el borrado
+     * accidental: un cliente que dispara la accion sin querer no lleva el titulo
+     * escrito.</p>
+     */
+    PROYECTO_CONFIRMACION_REQUERIDA(
+            400,
+            "Para eliminar el proyecto debes confirmar escribiendo su titulo."),
+
+    /**
+     * HU-08.3: la confirmacion no coincide con el titulo del proyecto.
+     *
+     * <p>422 y no 400: la peticion esta bien formada; lo que falla es la comprobacion
+     * contra el estado del recurso.</p>
+     */
+    PROYECTO_CONFIRMACION_INVALIDA(
+            422,
+            "La confirmacion no coincide con el titulo del proyecto.");
 
     private final int estado;
     private final String mensaje;

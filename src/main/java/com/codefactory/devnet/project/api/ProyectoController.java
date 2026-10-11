@@ -1,5 +1,6 @@
 package com.codefactory.devnet.project.api;
 
+import com.codefactory.devnet.project.application.ArchivarProyecto;
 import com.codefactory.devnet.project.application.EditarProyecto;
 import com.codefactory.devnet.project.application.ListarProyectosDeAutor;
 import com.codefactory.devnet.project.application.OcultarPublicacion;
@@ -39,7 +40,7 @@ import java.util.UUID;
 
 /**
  * HU-07 (AB#17): publicacion y listado de proyectos.
- * HU-08 (AB#18): edicion de proyectos.
+ * HU-08 (AB#18): edicion y eliminacion de proyectos.
  */
 @RestController
 @RequestMapping("/api/v1/proyectos")
@@ -50,15 +51,18 @@ public class ProyectoController {
     private final ListarProyectosDeAutor listar;
     private final OcultarPublicacion ocultar;
     private final EditarProyecto editar;
+    private final ArchivarProyecto archivar;
 
     public ProyectoController(PublicarProyecto publicar,
                               ListarProyectosDeAutor listar,
                               OcultarPublicacion ocultar,
-                              EditarProyecto editar) {
+                              EditarProyecto editar,
+                              ArchivarProyecto archivar) {
         this.publicar = publicar;
         this.listar = listar;
         this.ocultar = ocultar;
         this.editar = editar;
+        this.archivar = archivar;
     }
 
     /**
@@ -247,6 +251,63 @@ public class ProyectoController {
                 r.buscaColaboradores(), r.publicadoEn());
     }
 
+    /**
+     * HU-08 (AB#18): eliminar un proyecto. Cubre HU-08.3 y HU-08.4.
+     *
+     * <p>Eliminar es archivar (regla R3), y archivar es una transicion de estado, asi
+     * que se modela como sub-recurso de accion y no como {@code DELETE}: es exactamente
+     * la ruta que fija el ADR-002 ({@code POST .../archivado}), igual que
+     * {@code /ocultamiento}. Ademas, un {@code DELETE} con cuerpo, que la confirmacion
+     * necesita, lo descartan algunos clientes y proxies.</p>
+     *
+     * <p>El cuerpo es opcional a nivel HTTP a proposito: si falta, el dominio responde
+     * {@code PROYECTO_CONFIRMACION_REQUERIDA}, que le dice al cliente exactamente que
+     * hacer, en vez de un {@code CUERPO_ILEGIBLE} generico.</p>
+     */
+    @PostMapping("/{proyectoId}/archivado")
+    @PreAuthorize("hasAnyAuthority('publicacion:archivar', 'publicacion:moderar')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(
+            summary = "Eliminar (archivar) un proyecto",
+            description = """
+                    Retira el proyecto de forma **definitiva**: deja de verse en el perfil
+                    y en la lista del autor, y no se puede volver a editar. La fila se
+                    conserva en estado `ARCHIVADO`, con la transicion registrada en el
+                    historial.
+
+                    **Requiere confirmacion previa:** `confirmacionTitulo` debe ser el
+                    titulo exacto del proyecto. Sin el, **400
+                    PROYECTO_CONFIRMACION_REQUERIDA**; si no coincide, **422
+                    PROYECTO_CONFIRMACION_INVALIDA**.
+
+                    Pueden eliminarlo **su autor** y quien tenga el permiso
+                    `publicacion:moderar`. Cualquier otro recibe **403 PROYECTO_AJENO** y
+                    el intento queda registrado en auditoria.
+                    """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Proyecto eliminado (archivado)"),
+            @ApiResponse(responseCode = "400", description = "Falta la confirmacion",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class))),
+            @ApiResponse(responseCode = "401", ref = "#/components/responses/NoAutenticado"),
+            @ApiResponse(responseCode = "403", description = "No eres el autor ni moderador, o tu rol no elimina proyectos",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class))),
+            @ApiResponse(responseCode = "404", description = "El proyecto no existe o no esta disponible para ti",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class))),
+            @ApiResponse(responseCode = "409", description = "El proyecto ya estaba eliminado",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class))),
+            @ApiResponse(responseCode = "422", description = "La confirmacion no coincide con el titulo",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class)))
+    })
+    public ResponseEntity<Void> eliminar(@PathVariable UUID proyectoId,
+                                         @RequestBody(required = false) PeticionEliminarProyecto peticion,
+                                         HttpServletRequest http) {
+        archivar.ejecutar(new ArchivarProyecto.Comando(
+                proyectoId,
+                peticion == null ? null : peticion.confirmacionTitulo(),
+                IpCliente.de(http)));
+        return ResponseEntity.noContent().build();
+    }
+
     // ------------------------------------------------------------------
 
     @Schema(name = "PeticionOcultar")
@@ -346,6 +407,19 @@ public class ProyectoController {
 
             @Schema(defaultValue = "false", nullable = true)
             Boolean buscaColaboradores
+    ) { }
+
+    /**
+     * Confirmacion de la eliminacion (HU-08.3).
+     *
+     * <p>Sin {@code @NotBlank}: su ausencia la detecta el dominio, que responde con un
+     * codigo propio y explicito en lugar del generico de validacion.</p>
+     */
+    @Schema(name = "PeticionEliminarProyecto")
+    public record PeticionEliminarProyecto(
+            @Schema(description = "El titulo exacto del proyecto, para confirmar que se quiere eliminar",
+                    example = "Motor de plantillas en Java")
+            String confirmacionTitulo
     ) { }
 
     /** El proyecto tal como quedo guardado, con los valores ya normalizados. */
