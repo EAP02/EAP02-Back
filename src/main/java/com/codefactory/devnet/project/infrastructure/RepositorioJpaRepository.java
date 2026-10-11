@@ -11,4 +11,11 @@ public interface RepositorioJpaRepository extends JpaRepository<RepositorioEntit
     boolean existsByUrlIgnoreCase(String url);
 
     List<RepositorioEntity> findByPublicacionProyectoId(UUID publicacionProyectoId);
+
+    /**
+     * HU-08: la misma comprobacion que {@link #existsByUrlIgnoreCase}, excluyendo los
+     * repositorios del proyecto que se edita. Conservar el propio enlace no es un
+     * duplicado.
+     */
+    boolean existsByUrlIgnoreCaseAndPublicacionProyectoIdNot(String url, UUID publicacionProyectoId);
 }

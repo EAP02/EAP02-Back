@@ -9,8 +9,10 @@ import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import org.hibernate.annotations.DynamicUpdate;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -29,6 +31,12 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "publicacion")
+// HU-08: el UPDATE solo escribe las columnas que cambiaron. Sin esto, editar el texto
+// reescribiria tambien 'estado' con el valor leido al empezar la peticion, y un
+// moderador que ocultara el proyecto en ese mismo instante veria su ocultacion
+// deshecha en silencio: OcultarPublicacion cambia el estado por JDBC y no incrementa
+// 'version', asi que el bloqueo optimista no lo detectaria.
+@DynamicUpdate
 public class PublicacionEntity {
 
     public static final String TIPO_PROYECTO = "PROYECTO";
@@ -110,6 +118,32 @@ public class PublicacionEntity {
 
     public void agregarTecnologia(TecnologiaEntity tecnologia) {
         this.tecnologias.add(tecnologia);
+    }
+
+    /**
+     * HU-08: cambia el texto de la publicacion.
+     *
+     * <p>Toca {@code actualizado_en} siempre, aunque el texto no cambie. Asi la fila
+     * queda sucia en cada edicion y {@code @Version} se incrementa: es lo que garantiza
+     * que dos ediciones simultaneas choquen con un 409 en vez de pisarse, incluso cuando
+     * solo cambian campos del subtipo, que no tiene version propia.</p>
+     */
+    public void actualizarContenido(String titulo, String contenido, Instant ahora) {
+        this.titulo = titulo;
+        this.contenido = contenido;
+        this.actualizadoEn = ahora;
+    }
+
+    /**
+     * HU-08: deja el stack exactamente igual al conjunto recibido.
+     *
+     * <p>Quita las que sobran y anade las nuevas, en lugar de vaciar y rellenar: asi
+     * Hibernate solo borra e inserta las filas de {@code publicacion_tecnologia} que de
+     * verdad cambian.</p>
+     */
+    public void reemplazarTecnologias(Collection<TecnologiaEntity> nuevas) {
+        this.tecnologias.retainAll(nuevas);
+        this.tecnologias.addAll(nuevas);
     }
 
     public UUID getId() {

@@ -49,7 +49,28 @@ public enum CodigoErrorProyecto implements CodigoError {
 
     PROYECTO_NO_ENCONTRADO(
             404,
-            "El proyecto no existe o no esta disponible para ti.");
+            "El proyecto no existe o no esta disponible para ti."),
+
+    /**
+     * HU-08, criterio 2: modificar un proyecto sin ser su autor ni moderador.
+     *
+     * <p>Distinto de {@link #PROYECTO_AUTOR_AJENO}: aquel rechaza <i>crear</i> a nombre
+     * de otro; este, <i>modificar</i> lo que es de otro. Separarlos permite al cliente
+     * mostrar un mensaje que tenga sentido en cada pantalla.</p>
+     */
+    PROYECTO_AJENO(
+            403,
+            "Solo el autor del proyecto o un moderador puede modificarlo."),
+
+    /**
+     * HU-08: el proyecto existe y es tuyo, pero su estado no admite cambios.
+     *
+     * <p>409 y no 422: la peticion seria valida sobre el mismo proyecto en otro
+     * estado. El conflicto es con el estado actual del recurso.</p>
+     */
+    PROYECTO_NO_EDITABLE(
+            409,
+            "El proyecto no se puede modificar en su estado actual.");
 
     private final int estado;
     private final String mensaje;

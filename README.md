@@ -73,7 +73,8 @@ En IntelliJ IDEA pueden agregarse en **Run > Edit Configurations > Environment v
 3. Usar `Authorization: Bearer <token>`
 4. `PUT /api/v1/perfiles/{usuarioId}`
 5. `POST /api/v1/proyectos`
-6. `GET /api/v1/perfiles/{usuarioId}`
+6. `PUT /api/v1/proyectos/{proyectoId}` — solo el autor o un moderador (HU-08)
+7. `GET /api/v1/perfiles/{usuarioId}`
 
 Al registrar una cuenta, `identity` publica `UsuarioRegistrado` y `profile` crea el perfil
 inicial. La lectura pública del perfil obtiene los proyectos desde

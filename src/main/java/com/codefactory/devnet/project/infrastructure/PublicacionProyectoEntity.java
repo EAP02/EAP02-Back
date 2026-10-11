@@ -77,6 +77,24 @@ public class PublicacionProyectoEntity {
         return p;
     }
 
+    /**
+     * HU-08: cambia los datos propios del subtipo proyecto.
+     *
+     * <p>{@code max_colaboradores} no se toca: la API no lo expone todavia y pertenece
+     * al flujo de colaboracion.</p>
+     */
+    public void actualizar(String resumen,
+                           String estadoProyecto,
+                           String licencia,
+                           String urlDemo,
+                           boolean buscaColaboradores) {
+        this.resumen = resumen;
+        this.estadoProyecto = estadoProyecto;
+        this.licencia = licencia;
+        this.urlDemo = urlDemo;
+        this.buscaColaboradores = buscaColaboradores;
+    }
+
     public UUID getPublicacionId() {
         return publicacionId;
     }

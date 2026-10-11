@@ -1,5 +1,7 @@
 package com.codefactory.devnet.project.infrastructure;
 
+import com.codefactory.devnet.project.domain.EstadoProyecto;
+import com.codefactory.devnet.project.domain.EstadoPublicacion;
 import com.codefactory.devnet.project.domain.Proyecto;
 import com.codefactory.devnet.project.domain.RepositorioProyectos;
 import com.codefactory.devnet.project.api.PaginaKeyset;
@@ -144,6 +146,130 @@ public class RepositorioProyectosJpa implements RepositorioProyectos {
 
         return true;
     }
+
+    // ------------------------------------------------------------------
+    // HU-08: edicion
+    // ------------------------------------------------------------------
+
+    /**
+     * Sin {@code readOnly} a proposito: el caso de uso lee y despues escribe en la
+     * misma transaccion. En una de solo lectura, Hibernate marcaria la entidad como
+     * inmutable y {@link #actualizar} no escribiria nada, sin dar ningun error.
+     */
+    @Override
+    @Transactional
+    public Optional<Proyecto> paraEditar(UUID proyectoId) {
+        return proyectos.findById(proyectoId).map(this::aDominio);
+    }
+
+    /**
+     * Vuelca el agregado editado sobre las entidades ya cargadas.
+     *
+     * <p>No se insertan filas nuevas de {@code publicacion} ni del subtipo: se
+     * modifican las existentes, y Hibernate las escribe al confirmar. El
+     * {@code flush} final adelanta esa escritura para que un conflicto de
+     * concurrencia ({@code @Version}) salga aqui y no al cerrar la transaccion.</p>
+     */
+    @Override
+    @Transactional
+    public void actualizar(Proyecto proyecto) {
+        PublicacionProyectoEntity subtipo = proyectos.findById(proyecto.id())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Se intento actualizar un proyecto inexistente: " + proyecto.id()));
+
+        // El supertipo se pide a su propio repositorio y no via subtipo.getPublicacion().
+        // guardar() lo inserta con merge, porque el id se asigna a mano, y el subtipo
+        // queda apuntando a la copia desacoplada, no a la gestionada. Si ambas
+        // operaciones comparten sesion, modificar esa copia no escribiria nada. findById
+        // devuelve siempre la instancia gestionada.
+        PublicacionEntity publicacion = publicaciones.findById(proyecto.id())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Proyecto sin su fila de publicacion: " + proyecto.id()));
+
+        publicacion.actualizarContenido(proyecto.titulo(), proyecto.descripcion(), Instant.now());
+        publicacion.reemplazarTecnologias(
+                tecnologias.findByIdInAndAprobadaTrue(proyecto.tecnologias()));
+
+        subtipo.actualizar(
+                proyecto.resumen(),
+                proyecto.estadoProyecto().name(),
+                proyecto.licencia(),
+                proyecto.urlDemo(),
+                proyecto.buscaColaboradores());
+
+        sincronizarRepositorio(proyecto.id(), proyecto.urlRepositorio());
+
+        publicaciones.flush();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existeRepositorioConUrlEnOtroProyecto(String url, UUID proyectoId) {
+        return url != null
+                && repositorios.existsByUrlIgnoreCaseAndPublicacionProyectoIdNot(url, proyectoId);
+    }
+
+    /**
+     * Deja el proyecto enlazado exactamente al repositorio indicado, o a ninguno.
+     *
+     * <p>La API maneja un solo enlace por proyecto, aunque la tabla admita varios. Si
+     * el enlace no cambia, la fila se conserva tal cual, con sus estrellas y su ultima
+     * sincronizacion; si cambia, se sustituye.</p>
+     *
+     * <p>El {@code flush} entre borrar e insertar no es decorativo: Hibernate ejecuta
+     * las inserciones antes que los borrados, y sin el la restriccion {@code UNIQUE}
+     * de {@code url} podria saltar aunque la fila antigua ya estuviera condenada.</p>
+     */
+    private void sincronizarRepositorio(UUID proyectoId, String urlNueva) {
+        List<RepositorioEntity> actuales = repositorios.findByPublicacionProyectoId(proyectoId);
+
+        List<RepositorioEntity> obsoletos = actuales.stream()
+                .filter(r -> !r.getUrl().equals(urlNueva))
+                .toList();
+        boolean yaEnlazado = actuales.size() > obsoletos.size();
+
+        if (!obsoletos.isEmpty()) {
+            repositorios.deleteAll(obsoletos);
+            repositorios.flush();
+        }
+        if (urlNueva != null && !yaEnlazado) {
+            repositorios.save(RepositorioEntity.de(proyectoId, urlNueva));
+        }
+    }
+
+    private Proyecto aDominio(PublicacionProyectoEntity subtipo) {
+        // Mismo motivo que en actualizar(): la instancia gestionada, no la del subtipo.
+        PublicacionEntity p = publicaciones.findById(subtipo.getPublicacionId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Proyecto sin su fila de publicacion: " + subtipo.getPublicacionId()));
+
+        String urlRepo = repositorios.findByPublicacionProyectoId(subtipo.getPublicacionId())
+                .stream()
+                .findFirst()
+                .map(RepositorioEntity::getUrl)
+                .orElse(null);
+
+        Set<Short> stack = p.getTecnologias().stream()
+                .map(TecnologiaEntity::getId)
+                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+
+        return Proyecto.rehidratar(
+                p.getId(),
+                p.getAutorId(),
+                p.getTitulo(),
+                p.getContenido(),
+                subtipo.getResumen(),
+                stack,
+                urlRepo,
+                EstadoProyecto.valueOf(subtipo.getEstadoProyecto()),
+                subtipo.getLicencia(),
+                subtipo.getUrlDemo(),
+                subtipo.isBuscaColaboradores(),
+                p.getPublicadoEn(),
+                EstadoPublicacion.valueOf(p.getEstado()));
+    }
+
+    // ------------------------------------------------------------------
 
     private ProyectoResumen aResumen(PublicacionProyectoEntity subtipo) {
         PublicacionEntity p = subtipo.getPublicacion();
