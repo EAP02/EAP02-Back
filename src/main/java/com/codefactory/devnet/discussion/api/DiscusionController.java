@@ -2,9 +2,11 @@ package com.codefactory.devnet.discussion.api;
 
 import com.codefactory.devnet.discussion.application.ConsultarDiscusion;
 import com.codefactory.devnet.discussion.application.CrearDiscusion;
+import com.codefactory.devnet.discussion.application.ListarDiscusiones;
 import com.codefactory.devnet.discussion.domain.CategoriaDiscusion;
 import com.codefactory.devnet.shared.api.RespuestaError;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
@@ -32,6 +35,7 @@ import java.util.UUID;
 
 /**
  * HU-11: crear una discusion y verla con su autor y su hilo.
+ * HU-12: listar y filtrar discusiones por tema.
  */
 @RestController
 @RequestMapping("/api/v1/discusiones")
@@ -40,10 +44,14 @@ public class DiscusionController {
 
     private final CrearDiscusion crear;
     private final ConsultarDiscusion consultar;
+    private final ListarDiscusiones listar;
 
-    public DiscusionController(CrearDiscusion crear, ConsultarDiscusion consultar) {
+    public DiscusionController(CrearDiscusion crear,
+                               ConsultarDiscusion consultar,
+                               ListarDiscusiones listar) {
         this.crear = crear;
         this.consultar = consultar;
+        this.listar = listar;
     }
 
     /**
@@ -88,6 +96,42 @@ public class DiscusionController {
         return ResponseEntity
                 .created(URI.create("/api/v1/discusiones/" + r.id()))
                 .body(new RespuestaDiscusionCreada(r.id(), r.titulo(), r.publicadoEn()));
+    }
+
+    /**
+     * HU-12: listar y filtrar discusiones por tema.
+     *
+     * <p>{@code GET} sobre la coleccion con parametros de consulta, como
+     * {@code GET /api/v1/proyectos} (HU-09).</p>
+     */
+    @GetMapping
+    @SecurityRequirements
+    @Operation(
+            summary = "Listar y filtrar discusiones",
+            description = """
+                    Discusiones publicadas, de la mas reciente a la mas antigua, paginadas
+                    por cursor: ningun elemento se repite entre paginas aunque se abran
+                    discusiones nuevas mientras se recorren.
+
+                    - `tecnologia`: el `slug` de una etiqueta del catalogo
+                      (`GET /api/v1/tecnologias`). Devuelve solo las discusiones con esa
+                      etiqueta. Sin el, todas.
+
+                    **Sin resultados** la respuesta es `200` con `contenido` vacio y un
+                    `mensaje` que orienta. Con resultados, `mensaje` es `null`.
+
+                    Para la pagina siguiente, devuelve `cursorSiguiente` tal cual en el
+                    parametro `cursor`.
+                    """)
+    public ListarDiscusiones.Listado listar(
+            @Parameter(description = "Slug de la tecnologia del catalogo", example = "java")
+            @RequestParam(required = false) String tecnologia,
+            @Parameter(description = "Cursor devuelto por la pagina anterior")
+            @RequestParam(required = false) String cursor,
+            @Parameter(description = "Tamano de pagina (1-50, por defecto 20)")
+            @RequestParam(required = false) Integer limite) {
+
+        return listar.ejecutar(tecnologia, cursor, limite);
     }
 
     @GetMapping("/{discusionId}")

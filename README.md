@@ -80,6 +80,8 @@ En IntelliJ IDEA pueden agregarse en **Run > Edit Configurations > Environment v
    `slug` de tecnología salen de `GET /api/v1/tecnologias`
 10. `POST /api/v1/discusiones` y `GET /api/v1/discusiones/{id}` — abrir una discusión y
     leerla con su autor y su hilo (HU-11)
+11. `GET /api/v1/discusiones?tecnologia=` — listar y filtrar discusiones por tema, sin
+    token (HU-12)
 
 Al registrar una cuenta, `identity` publica `UsuarioRegistrado` y `profile` crea el perfil
 inicial. La lectura pública del perfil obtiene los proyectos desde

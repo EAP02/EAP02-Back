@@ -7,9 +7,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -120,6 +126,142 @@ public class RepositorioDiscusionesJdbc implements RepositorioDiscusiones {
                         rs.getInt("comentarios"),
                         rs.getTimestamp("primera").toInstant()),
                 discusionId);
+    }
+
+    /**
+     * HU-12: listado paginado por keyset, con filtro opcional por etiqueta.
+     *
+     * <p>SQL armado segun el filtro presente, como la busqueda de proyectos: con una
+     * consulta fija del tipo {@code (? IS NULL OR ...)}, PostgreSQL acaba con un plan
+     * generico que no aprovecha los indices. Solo los valores van como parametros.</p>
+     *
+     * <p>Indices: {@code ix_publicacion_feed} (parcial sobre PUBLICADO, por
+     * {@code publicado_en}) para el orden y el cursor, e
+     * {@code ix_publicacion_tecnologia_inverso} para el {@code EXISTS} de la etiqueta.</p>
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Pagina listar(Short tecnologiaId, String cursor, int limite) {
+        Cursor decodificado = Cursor.decodificar(cursor);
+
+        StringBuilder sql = new StringBuilder("""
+                SELECT p.id, p.autor_id, p.titulo, p.contenido, p.publicado_en,
+                       d.categoria, d.resuelta
+                  FROM publicacion p
+                  JOIN publicacion_discusion d ON d.publicacion_id = p.id
+                 WHERE p.tipo = 'DISCUSION' AND p.estado = 'PUBLICADO'
+                """);
+        List<Object> parametros = new ArrayList<>();
+
+        if (tecnologiaId != null) {
+            sql.append("""
+                     AND EXISTS (SELECT 1 FROM publicacion_tecnologia pt
+                                 WHERE pt.publicacion_id = p.id AND pt.tecnologia_id = ?)
+                    """);
+            parametros.add(tecnologiaId);
+        }
+        if (decodificado != null) {
+            sql.append(" AND (p.publicado_en, p.id) < (?, ?)");
+            parametros.add(Timestamp.from(decodificado.fecha()));
+            parametros.add(decodificado.id());
+        }
+
+        // Una fila de mas: es como se sabe si hay pagina siguiente sin contar todas.
+        sql.append(" ORDER BY p.publicado_en DESC, p.id DESC LIMIT ?");
+        parametros.add(limite + 1);
+
+        List<FilaDiscusion> filas = jdbc.query(sql.toString(),
+                (rs, i) -> new FilaDiscusion(
+                        rs.getObject("id", UUID.class),
+                        rs.getObject("autor_id", UUID.class),
+                        rs.getString("titulo"),
+                        rs.getString("contenido"),
+                        CategoriaDiscusion.valueOf(rs.getString("categoria")),
+                        rs.getBoolean("resuelta"),
+                        rs.getTimestamp("publicado_en").toInstant()),
+                parametros.toArray());
+
+        boolean hayMas = filas.size() > limite;
+        List<FilaDiscusion> pagina = hayMas ? filas.subList(0, limite) : filas;
+
+        Map<UUID, Set<Short>> etiquetas = etiquetasDe(pagina.stream().map(FilaDiscusion::id).toList());
+        List<DiscusionPublicada> contenido = pagina.stream()
+                .map(f -> f.conEtiquetas(etiquetas.getOrDefault(f.id(), Set.of())))
+                .toList();
+
+        String siguiente = hayMas
+                ? Cursor.codificar(pagina.get(pagina.size() - 1).publicadoEn(), pagina.get(pagina.size() - 1).id())
+                : null;
+
+        return new Pagina(contenido, siguiente, hayMas);
+    }
+
+    /**
+     * Las etiquetas de toda la pagina en <b>una</b> consulta, en lugar de una por
+     * discusion. Con paginas de hasta 50, la diferencia son 49 viajes a la base.
+     */
+    private Map<UUID, Set<Short>> etiquetasDe(List<UUID> discusiones) {
+        Map<UUID, Set<Short>> porDiscusion = new HashMap<>();
+        if (discusiones.isEmpty()) {
+            return porDiscusion;
+        }
+        String marcadores = String.join(", ", java.util.Collections.nCopies(discusiones.size(), "?"));
+        jdbc.query("""
+                SELECT publicacion_id, tecnologia_id FROM publicacion_tecnologia
+                 WHERE publicacion_id IN (%s)
+                 ORDER BY tecnologia_id
+                """.formatted(marcadores),
+                rs -> {
+                    porDiscusion
+                            .computeIfAbsent(rs.getObject("publicacion_id", UUID.class), k -> new LinkedHashSet<>())
+                            .add(rs.getShort("tecnologia_id"));
+                },
+                discusiones.toArray());
+        return porDiscusion;
+    }
+
+    /** Una fila del listado antes de adjuntarle sus etiquetas. */
+    private record FilaDiscusion(UUID id, UUID autorId, String titulo, String cuerpo,
+                                 CategoriaDiscusion categoria, boolean resuelta, Instant publicadoEn) {
+
+        DiscusionPublicada conEtiquetas(Set<Short> etiquetas) {
+            return new DiscusionPublicada(id, autorId, titulo, cuerpo, categoria, resuelta, etiquetas, publicadoEn);
+        }
+    }
+
+    /**
+     * Cursor de paginacion: {@code base64("instante|uuid")}, el mismo formato que el de
+     * proyectos.
+     *
+     * <p>Opaco a proposito: si el cliente pudiera leerlo, acabaria construyendolo a mano
+     * y quedaria atado a la forma interna del indice. Un cursor corrupto devuelve la
+     * primera pagina en vez de un error: es navegacion, no una orden del usuario.</p>
+     *
+     * <p>No se comparte con el de {@code project} porque aquel es privado de su
+     * infraestructura, y que dos colecciones distintas paginen igual no las obliga a
+     * compartir codigo.</p>
+     */
+    private record Cursor(Instant fecha, UUID id) {
+
+        static String codificar(Instant fecha, UUID id) {
+            String plano = fecha.toString() + "|" + id;
+            return Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(plano.getBytes(StandardCharsets.UTF_8));
+        }
+
+        /** @return {@code null} si no hay cursor o es ilegible: primera pagina */
+        static Cursor decodificar(String cursor) {
+            if (cursor == null || cursor.isBlank()) {
+                return null;
+            }
+            try {
+                String plano = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
+                String[] partes = plano.split("\\|", 2);
+                return new Cursor(Instant.parse(partes[0]), UUID.fromString(partes[1]));
+            } catch (RuntimeException ex) {
+                return null;
+            }
+        }
     }
 
     private Set<Short> etiquetasDe(UUID discusionId) {
