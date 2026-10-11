@@ -105,6 +105,38 @@ El autor retira definitivamente su publicación. Es **terminal e irreversible**:
 reacciones y reputación acreditada siguen siendo coherentes— sin dejar el contenido
 visible.
 
+Implementada para proyectos en
+[`ArchivarProyecto`](../../src/main/java/com/codefactory/devnet/project/application/ArchivarProyecto.java)
+(HU-08, AB#18: tareas HU-08.3 y HU-08.4), con `POST /api/v1/proyectos/{id}/archivado`,
+la ruta que fija el ADR-002. **Es lo que la HU llama «eliminar»**: el equipo decidió que
+eliminar un proyecto es archivarlo y no borrar la fila, porque el borrado en cascada se
+llevaría también el historial que explica qué pasó.
+
+Condiciones, en este orden:
+
+1. El token trae `publicacion:archivar` (`DESARROLLADOR`, `MODERADOR`) o
+   `publicacion:moderar` (`MODERADOR`, `ADMIN`). Un `VISITANTE` recibe `403 ACCESO_DENEGADO`.
+2. **Solo el autor o un moderador**, con la misma
+   [`PoliticaProyecto`](../../src/main/java/com/codefactory/devnet/project/domain/PoliticaProyecto.java)
+   que la edición (R6). Cualquier otro recibe `403 PROYECTO_AJENO` y el intento queda en
+   `auditoria`.
+3. Se archiva desde `PUBLICADO` u `OCULTO`. Sobre algo ya archivado, `409 PROYECTO_NO_EDITABLE`.
+4. **Confirmación previa** (HU-08.3): el cuerpo lleva `confirmacionTitulo` con el título
+   exacto del proyecto, como al borrar un repositorio en GitHub. Sin ella,
+   `400 PROYECTO_CONFIRMACION_REQUERIDA`; si no coincide (distingue mayúsculas),
+   `422 PROYECTO_CONFIRMACION_INVALIDA`. Una API sin frontend no puede mostrar un diálogo
+   de «¿estás seguro?»; exigir el título es su equivalente en el contrato, y evita que un
+   clic o un reintento accidental borre nada.
+
+La transición escribe en `historial_estado_publicacion` (R5) con el actor y el motivo
+`Eliminado por su autor.` o `Eliminado por moderacion.`. Si la hizo un moderador sobre
+un proyecto ajeno, queda además en `auditoria` como `UPDATE`.
+
+El proyecto desaparece de toda lectura pública sin tocar ninguna consulta: el listado del
+autor y el perfil ya filtran por `PUBLICADO`.
+
+**Pendiente:** archivar discusiones, cuando exista el módulo.
+
 ### R4 · Restituir
 
 Un moderador devuelve a `PUBLICADO` algo que se ocultó por error. Mismo permiso que R2 y
@@ -123,6 +155,46 @@ que sería ruido.
 Es lo que exige el §3.2 —«implementar auditoría y trazabilidad de cambios relevantes»— y
 lo que permite contestar la pregunta que se hace cuando alguien reclama: quién ocultó
 esto, cuándo y con qué motivo.
+
+### R6 · Editar el contenido
+
+Implementada en
+[`EditarProyecto`](../../src/main/java/com/codefactory/devnet/project/application/EditarProyecto.java)
+(HU-08, AB#18: tareas HU-08.1 · AB#39 y HU-08.2 · AB#40), con `PUT /api/v1/proyectos/{id}`.
+La eliminación de la misma HU es la regla R3.
+
+No es una transición: el estado de la publicación no cambia, así que no escribe en
+`historial_estado_publicacion`. Pero depende del estado y de quién la pide.
+
+Condiciones, todas verificadas en el servidor y en este orden:
+
+1. Hay sesión activa y el token trae `publicacion:editar` (`DESARROLLADOR`, `MODERADOR`) o
+   `publicacion:moderar` (`MODERADOR`, `ADMIN`). Sin ninguno, `403 ACCESO_DENEGADO`.
+2. **Solo el autor o un moderador** modifica el proyecto
+   ([`PoliticaProyecto`](../../src/main/java/com/codefactory/devnet/project/domain/PoliticaProyecto.java)).
+   Cualquier otro recibe `403 PROYECTO_AJENO` y **el intento queda en `auditoria`** como
+   `ACCESO_DENEGADO`, igual que exige HU-06. Si el proyecto no es público, la respuesta es
+   `404`: un `403` confirmaría que existe algo que no debería poder ver (ADR-005).
+3. **Solo se edita un proyecto `PUBLICADO`.** Uno `OCULTO` u `ARCHIVADO` responde
+   `409 PROYECTO_NO_EDITABLE`: editar algo oculto permitiría al autor cambiar el contenido
+   que motivó la ocultación y borrar la evidencia.
+4. El contenido cumple **las mismas reglas que al publicar** (R1, puntos 3, 4 y 6), porque
+   `Proyecto.publicar()` y `Proyecto.editar()` comparten la validación. Un proyecto editado
+   no puede quedar en un estado que no se habría podido publicar.
+5. El repositorio enlazado no pertenece a **otro** proyecto. Conservar el propio no es un
+   duplicado.
+
+Lo que **no** cambia al editar: el identificador, el autor, la fecha de publicación y el
+estado. Editar no es volver a publicar.
+
+Cuando quien edita es un moderador y no el autor, la intervención queda en `auditoria`
+como `UPDATE` sobre `publicacion`, con su identificador como actor. Cambiar el trabajo de
+otra persona es un poder que debe dejar rastro.
+
+**Concurrencia.** Dos ediciones simultáneas del mismo proyecto no se pisan: la segunda
+recibe `409 CONFLICTO_CONCURRENCIA` por el bloqueo optimista de `publicacion.version`.
+`PublicacionEntity` usa `@DynamicUpdate` para que editar no reescriba la columna `estado`
+y no pueda deshacer una ocultación hecha en ese mismo instante.
 
 ---
 
@@ -157,6 +229,7 @@ petición una y otra vez.
 |---|---|---|---|
 | R1 | HU-07 · AB#17 | `PublicarProyecto` | `ProyectoTest`, `PublicarProyectoIT` |
 | R2 | HU-06 · AB#15 | `OcultarPublicacion` | `ControlAccesoPorRolIT` |
-| R3 | — | No implementada | — |
+| R3 | HU-08 · AB#18 (HU-08.3, HU-08.4) | `ArchivarProyecto`, `Proyecto.archivar()` | `ArchivarProyectoTest`, `ArchivarProyectoIT` |
 | R4 | — | No implementada | — |
 | R5 | HU-06 · AB#15 | `historial_estado_publicacion` | `ControlAccesoPorRolIT` |
+| R6 | HU-08 · AB#18 (AB#39, AB#40) | `EditarProyecto`, `PoliticaProyecto`, `Proyecto.editar()` | `EditarProyectoTest`, `EditarProyectoIT` |

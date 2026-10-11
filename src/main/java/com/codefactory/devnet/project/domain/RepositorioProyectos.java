@@ -47,6 +47,42 @@ public interface RepositorioProyectos {
      */
     boolean transicionarEstado(UUID publicacionId, String estadoNuevo, UUID actorId, String motivo);
 
+    // ------------------------------------------------------------------
+    // HU-08: edicion
+    // ------------------------------------------------------------------
+
+    /**
+     * El proyecto completo como agregado de dominio, sea cual sea su estado.
+     *
+     * <p>A diferencia de {@link #porId}, que es una proyeccion de lectura con los
+     * nombres de las tecnologias, este devuelve sus identificadores y el estado de la
+     * publicacion: lo necesario para decidir si se puede modificar y para validarlo.</p>
+     *
+     * <p>No filtra por estado a proposito: decidir que hacer con un proyecto oculto o
+     * archivado es una regla de negocio, no una consulta.</p>
+     *
+     * <p>Lo usan {@code EditarProyecto} y {@code ArchivarProyecto}: ambos necesitan el
+     * agregado completo antes de decidir si el actor puede modificarlo.</p>
+     */
+    Optional<Proyecto> paraEditar(UUID proyectoId);
+
+    /**
+     * Persiste el contenido de un proyecto ya existente.
+     *
+     * <p>Como {@link #guardar}, escribe en varias tablas dentro de la misma
+     * transaccion: {@code publicacion}, {@code publicacion_proyecto},
+     * {@code publicacion_tecnologia} y {@code repositorio}. Si otra peticion modifico
+     * el proyecto entre la lectura y la escritura, falla con
+     * {@code CONFLICTO_CONCURRENCIA} en lugar de pisar sus cambios.</p>
+     */
+    void actualizar(Proyecto proyecto);
+
+    /**
+     * Como {@link #existeRepositorioConUrl}, pero ignorando los repositorios del propio
+     * proyecto: al editar, conservar el enlace que ya se tenia no es un duplicado.
+     */
+    boolean existeRepositorioConUrlEnOtroProyecto(String url, UUID proyectoId);
+
     /**
      * Proyeccion de lectura. No expone la entidad JPA fuera de infraestructura.
      *

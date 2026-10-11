@@ -1,9 +1,12 @@
 package com.codefactory.devnet.project.api;
 
+import com.codefactory.devnet.project.application.ArchivarProyecto;
+import com.codefactory.devnet.project.application.EditarProyecto;
 import com.codefactory.devnet.project.application.ListarProyectosDeAutor;
 import com.codefactory.devnet.project.application.OcultarPublicacion;
 import com.codefactory.devnet.project.application.PublicarProyecto;
 import com.codefactory.devnet.project.domain.EstadoProyecto;
+import com.codefactory.devnet.shared.api.IpCliente;
 import com.codefactory.devnet.shared.api.RespuestaError;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -14,6 +17,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -23,6 +27,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -35,6 +40,7 @@ import java.util.UUID;
 
 /**
  * HU-07 (AB#17): publicacion y listado de proyectos.
+ * HU-08 (AB#18): edicion y eliminacion de proyectos.
  */
 @RestController
 @RequestMapping("/api/v1/proyectos")
@@ -44,13 +50,19 @@ public class ProyectoController {
     private final PublicarProyecto publicar;
     private final ListarProyectosDeAutor listar;
     private final OcultarPublicacion ocultar;
+    private final EditarProyecto editar;
+    private final ArchivarProyecto archivar;
 
     public ProyectoController(PublicarProyecto publicar,
                               ListarProyectosDeAutor listar,
-                              OcultarPublicacion ocultar) {
+                              OcultarPublicacion ocultar,
+                              EditarProyecto editar,
+                              ArchivarProyecto archivar) {
         this.publicar = publicar;
         this.listar = listar;
         this.ocultar = ocultar;
+        this.editar = editar;
+        this.archivar = archivar;
     }
 
     /**
@@ -172,6 +184,130 @@ public class ProyectoController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * HU-08 (AB#18): editar un proyecto. Cubre HU-08.1 (AB#39) y HU-08.2 (AB#40).
+     *
+     * <p>Dos capas de autorizacion, como en el resto de la API. {@code @PreAuthorize}
+     * filtra por rol: hace falta poder editar publicaciones o poder moderarlas. Despues
+     * {@code PoliticaProyecto} decide si este actor puede editar <i>este</i> proyecto,
+     * cosa que solo se sabe tras leerlo.</p>
+     *
+     * <p>{@code PUT} y no {@code PATCH}: se envia el proyecto completo, con las mismas
+     * reglas que al publicar, igual que {@code PUT /api/v1/perfiles/{id}}.</p>
+     */
+    @PutMapping("/{proyectoId}")
+    @PreAuthorize("hasAnyAuthority('publicacion:editar', 'publicacion:moderar')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(
+            summary = "Editar un proyecto",
+            description = """
+                    Reemplaza el contenido del proyecto. Se envia completo, como al
+                    publicar: un campo opcional que no se envie vuelve a su valor por
+                    defecto.
+
+                    Pueden editarlo **su autor** y quien tenga el permiso
+                    `publicacion:moderar` (MODERADOR y ADMIN). Cualquier otro recibe
+                    **403 PROYECTO_AJENO** y el intento queda registrado en auditoria.
+                    La edicion hecha por un moderador tambien queda auditada.
+
+                    Solo se edita un proyecto **PUBLICADO**; uno oculto o archivado
+                    responde **409 PROYECTO_NO_EDITABLE**.
+
+                    El identificador, el autor y la fecha de publicacion no cambian.
+                    """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Proyecto actualizado"),
+            @ApiResponse(responseCode = "400", description = "Faltan titulo o descripcion, o no cumplen el formato",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class))),
+            @ApiResponse(responseCode = "401", ref = "#/components/responses/NoAutenticado"),
+            @ApiResponse(responseCode = "403", description = "No eres el autor ni moderador, o tu rol no edita proyectos",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class))),
+            @ApiResponse(responseCode = "404", description = "El proyecto no existe o no esta disponible para ti",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class))),
+            @ApiResponse(responseCode = "409", description = "Estado que no admite edicion, repositorio ya enlazado a otro proyecto, o edicion concurrente",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class))),
+            @ApiResponse(responseCode = "422", description = "Tecnologias inexistentes o no aprobadas",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class)))
+    })
+    public ProyectoEditado editar(@PathVariable UUID proyectoId,
+                                  @Valid @RequestBody PeticionEditarProyecto peticion,
+                                  HttpServletRequest http) {
+
+        EditarProyecto.Resultado r = editar.ejecutar(new EditarProyecto.Comando(
+                proyectoId,
+                peticion.titulo(),
+                peticion.descripcion(),
+                peticion.resumen(),
+                peticion.tecnologias(),
+                peticion.urlRepositorio(),
+                peticion.estadoProyecto(),
+                peticion.licencia(),
+                peticion.urlDemo(),
+                Boolean.TRUE.equals(peticion.buscaColaboradores()),
+                IpCliente.de(http)));
+
+        return new ProyectoEditado(r.id(), r.autorId(), r.titulo(), r.descripcion(), r.resumen(),
+                r.tecnologias(), r.urlRepositorio(), r.estadoProyecto(), r.licencia(), r.urlDemo(),
+                r.buscaColaboradores(), r.publicadoEn());
+    }
+
+    /**
+     * HU-08 (AB#18): eliminar un proyecto. Cubre HU-08.3 y HU-08.4.
+     *
+     * <p>Eliminar es archivar (regla R3), y archivar es una transicion de estado, asi
+     * que se modela como sub-recurso de accion y no como {@code DELETE}: es exactamente
+     * la ruta que fija el ADR-002 ({@code POST .../archivado}), igual que
+     * {@code /ocultamiento}. Ademas, un {@code DELETE} con cuerpo, que la confirmacion
+     * necesita, lo descartan algunos clientes y proxies.</p>
+     *
+     * <p>El cuerpo es opcional a nivel HTTP a proposito: si falta, el dominio responde
+     * {@code PROYECTO_CONFIRMACION_REQUERIDA}, que le dice al cliente exactamente que
+     * hacer, en vez de un {@code CUERPO_ILEGIBLE} generico.</p>
+     */
+    @PostMapping("/{proyectoId}/archivado")
+    @PreAuthorize("hasAnyAuthority('publicacion:archivar', 'publicacion:moderar')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(
+            summary = "Eliminar (archivar) un proyecto",
+            description = """
+                    Retira el proyecto de forma **definitiva**: deja de verse en el perfil
+                    y en la lista del autor, y no se puede volver a editar. La fila se
+                    conserva en estado `ARCHIVADO`, con la transicion registrada en el
+                    historial.
+
+                    **Requiere confirmacion previa:** `confirmacionTitulo` debe ser el
+                    titulo exacto del proyecto. Sin el, **400
+                    PROYECTO_CONFIRMACION_REQUERIDA**; si no coincide, **422
+                    PROYECTO_CONFIRMACION_INVALIDA**.
+
+                    Pueden eliminarlo **su autor** y quien tenga el permiso
+                    `publicacion:moderar`. Cualquier otro recibe **403 PROYECTO_AJENO** y
+                    el intento queda registrado en auditoria.
+                    """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Proyecto eliminado (archivado)"),
+            @ApiResponse(responseCode = "400", description = "Falta la confirmacion",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class))),
+            @ApiResponse(responseCode = "401", ref = "#/components/responses/NoAutenticado"),
+            @ApiResponse(responseCode = "403", description = "No eres el autor ni moderador, o tu rol no elimina proyectos",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class))),
+            @ApiResponse(responseCode = "404", description = "El proyecto no existe o no esta disponible para ti",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class))),
+            @ApiResponse(responseCode = "409", description = "El proyecto ya estaba eliminado",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class))),
+            @ApiResponse(responseCode = "422", description = "La confirmacion no coincide con el titulo",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class)))
+    })
+    public ResponseEntity<Void> eliminar(@PathVariable UUID proyectoId,
+                                         @RequestBody(required = false) PeticionEliminarProyecto peticion,
+                                         HttpServletRequest http) {
+        archivar.ejecutar(new ArchivarProyecto.Comando(
+                proyectoId,
+                peticion == null ? null : peticion.confirmacionTitulo(),
+                IpCliente.de(http)));
+        return ResponseEntity.noContent().build();
+    }
+
     // ------------------------------------------------------------------
 
     @Schema(name = "PeticionOcultar")
@@ -225,4 +361,82 @@ public class ProyectoController {
 
     @Schema(name = "RespuestaProyectoPublicado")
     public record RespuestaProyectoPublicado(UUID id, String titulo, Instant publicadoEn) { }
+
+    /**
+     * Cuerpo de la edicion. Los mismos campos y anotaciones que
+     * {@link PeticionPublicarProyecto}, sin {@code autorId}: el autor de un proyecto
+     * existente no cambia, asi que no hay nada que declarar.
+     *
+     * <p>La validacion de forma se repite aqui y en el dominio a proposito, como en la
+     * publicacion: esta rechaza pronto lo evidente; el dominio es la regla que ninguna
+     * otra ruta puede saltarse.</p>
+     */
+    @Schema(name = "PeticionEditarProyecto")
+    public record PeticionEditarProyecto(
+
+            @NotBlank(message = "el titulo es obligatorio")
+            @Size(min = 5, max = 200, message = "el titulo debe tener entre 5 y 200 caracteres")
+            @Schema(example = "Motor de plantillas en Java")
+            String titulo,
+
+            @NotBlank(message = "la descripcion es obligatoria")
+            @Size(min = 20, message = "la descripcion debe tener al menos 20 caracteres")
+            @Schema(example = "Motor de plantillas minimalista en Java 17, ahora con soporte para bucles.")
+            String descripcion,
+
+            @Schema(description = "Opcional. Si falta, se deriva de la descripcion.", nullable = true)
+            String resumen,
+
+            @NotEmpty(message = "debes indicar al menos una tecnologia")
+            @Size(min = 1, max = 5, message = "entre 1 y 5 tecnologias")
+            @Schema(description = "Identificadores del catalogo de tecnologias", example = "[1, 7]")
+            Set<Short> tecnologias,
+
+            @Schema(description = "Debe ser https. Si se omite, el proyecto queda sin repositorio enlazado.",
+                    example = "https://github.com/usuario/motor-plantillas", nullable = true)
+            String urlRepositorio,
+
+            @Schema(example = "ESTABLE", nullable = true)
+            EstadoProyecto estadoProyecto,
+
+            @Schema(example = "MIT", nullable = true)
+            String licencia,
+
+            @Schema(nullable = true)
+            String urlDemo,
+
+            @Schema(defaultValue = "false", nullable = true)
+            Boolean buscaColaboradores
+    ) { }
+
+    /**
+     * Confirmacion de la eliminacion (HU-08.3).
+     *
+     * <p>Sin {@code @NotBlank}: su ausencia la detecta el dominio, que responde con un
+     * codigo propio y explicito en lugar del generico de validacion.</p>
+     */
+    @Schema(name = "PeticionEliminarProyecto")
+    public record PeticionEliminarProyecto(
+            @Schema(description = "El titulo exacto del proyecto, para confirmar que se quiere eliminar",
+                    example = "Motor de plantillas en Java")
+            String confirmacionTitulo
+    ) { }
+
+    /** El proyecto tal como quedo guardado, con los valores ya normalizados. */
+    @Schema(name = "ProyectoEditado")
+    public record ProyectoEditado(
+            UUID id,
+            UUID autorId,
+            String titulo,
+            String descripcion,
+            String resumen,
+            @Schema(description = "Identificadores del catalogo de tecnologias")
+            Set<Short> tecnologias,
+            String urlRepositorio,
+            EstadoProyecto estadoProyecto,
+            String licencia,
+            String urlDemo,
+            boolean buscaColaboradores,
+            Instant publicadoEn
+    ) { }
 }
