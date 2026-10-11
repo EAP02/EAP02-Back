@@ -42,7 +42,7 @@ Correspondencia con la tabla de §4.1 de los lineamientos:
 | Cliente web | No aplica (frontend N/A en el perfil avanzado) |
 | Gestión de identidad y acceso | Módulo `identity`, con GitHub como IdP federado |
 | API Gateway | No aplica. Con un solo contenedor, un gateway añadiría un salto sin aportar enrutamiento ni balanceo real |
-| Backend | Tres módulos de negocio —`identity`, `profile`, `project`— más el kernel `shared` y el cableado de arranque en `config` |
+| Backend | Cuatro módulos de negocio —`identity`, `profile`, `project`, `discussion`— más el kernel `shared` y el cableado de arranque en `config` |
 | Base de datos transaccional | PostgreSQL 16 en Supabase |
 | Repositorio de recursos | Supabase Storage, tras la interfaz `AlmacenArchivos` |
 | Observabilidad | Actuator + Micrometer → Prometheus/Grafana Cloud; logs JSON con `traceId` |
@@ -66,9 +66,9 @@ y la infraestructura desplegada, así que cada caja de `c4-03-componentes-api.pu
 `uml-paquetes.puml` existe como paquete, y cada flecha entre módulos es un `import`
 verificable.
 
-El ADR-001 preveía nueve módulos. Se construyeron tres de negocio —`identity`, `profile`,
-`project`— más el kernel `shared` y el cableado `config`. Quedaron fuera `discussion`,
-`interaction`, `messaging`, `moderation` y `analytics`; lo único de moderación que existe
+El ADR-001 preveía nueve módulos. Hay cuatro de negocio —`identity`, `profile`,
+`project` y, desde el sprint 2 (HU-11), `discussion`— más el kernel `shared` y el
+cableado `config`. Quedaron fuera `interaction`, `messaging`, `moderation` y `analytics`; lo único de moderación que existe
 —ocultar una publicación con motivo obligatorio— vive dentro de `project`.
 
 Esas capacidades **sí están en el modelo de datos**: sus tablas forman parte de las 29 de

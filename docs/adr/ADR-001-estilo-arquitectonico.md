@@ -11,6 +11,9 @@
 > **dónde se publica el contrato entre módulos**: no en el `domain` del destino, sino en
 > su paquete `api`. Ver [ADR-006](ADR-006-contratos-entre-modulos-en-api.md).
 >
+> **Actualización (sprint 2, HU-11):** `discussion` ya tiene código; son cuatro módulos de
+> negocio. Consume `identity.api` y `project.api`, como fija el ADR-006.
+>
 > Este ADR describe además **nueve módulos**. En el código existen tres de negocio
 > (`identity`, `profile`, `project`) más `shared` y `config`. `discussion`,
 > `interaction`, `messaging`, `moderation` y `analytics` quedaron fuera del alcance; la

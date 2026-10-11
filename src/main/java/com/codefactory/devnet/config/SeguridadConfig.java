@@ -102,6 +102,7 @@ public class SeguridadConfig {
                     .requestMatchers(HttpMethod.GET, "/api/v1/proyectos/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/perfiles/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/tecnologias/**").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/discusiones/**").permitAll()
                     // Metricas: nunca abiertas, ni siquiera en integracion.
                     .requestMatchers("/actuator/**").authenticated()
                     .anyRequest().authenticated())
