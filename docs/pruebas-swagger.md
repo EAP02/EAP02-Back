@@ -280,6 +280,34 @@ SELECT estado_anterior, estado_nuevo, motivo, actor_id, creado_en
  ORDER BY creado_en DESC LIMIT 3;
 ```
 
+### 5.3 · Abrir una discusión · `POST /api/v1/discusiones`
+
+Con el token de **ana**:
+
+```json
+{
+  "titulo": "Spring Boot 4: vale la pena migrar ya?",
+  "cuerpo": "Estamos evaluando migrar desde Boot 3. Que problemas encontraron con Jackson 3?",
+  "tecnologias": [1, 7]
+}
+```
+
+**Esperado:** `201` con `id` y la cabecera `Location`. **Guarda el `id`.** La categoría no
+se envió y queda en `DEBATE`.
+
+Repite **sin `cuerpo`** → **`400`** con el detalle en `cuerpo`: es el ejemplo literal del
+criterio 2 de HU-11.
+
+Ahora, **sin token**, `GET /api/v1/discusiones/{id}`.
+
+**Esperado:** `200` con `autor.nombreUsuario` = `ana_dev`, las etiquetas con su nombre y
+`hilo: { totalComentarios: 0, participantes: [] }`. El hilo existe desde que se crea; se
+llenará cuando exista la HU de comentarios.
+
+**Qué señalar:** es un módulo nuevo, `discussion`, que no toca nada de `project` salvo su
+contrato público (`project.api.CatalogoTecnologiasConsulta`) para validar las etiquetas.
+`FronterasModularesTest` lo verifica en cada build.
+
 ### 6 · Autorización denegada · `POST /api/v1/proyectos/{proyectoId}/ocultamiento`
 
 Con el token de **ana**, que es `DESARROLLADOR`:

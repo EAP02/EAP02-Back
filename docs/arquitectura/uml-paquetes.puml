@@ -73,6 +73,9 @@ package "project" as PJ #E3F2FD {
     interface ProyectoPublicoConsulta {
       + publicadosPor(autorId) : List<ProyectoPublico>
     }
+    interface CatalogoTecnologiasConsulta {
+      + aprobadas() : List<TecnologiaPublica>
+    }
     class PaginaKeyset<T> <<record>>
   }
   package "project.domain" {
@@ -80,6 +83,17 @@ package "project" as PJ #E3F2FD {
   }
   package "project.application" {}
   package "project.infrastructure" {}
+}
+
+package "discussion" as DI #F3E5F5 {
+  package "discussion.api" {
+    class DiscusionController
+  }
+  package "discussion.domain" {
+    interface RepositorioDiscusiones
+  }
+  package "discussion.application" {}
+  package "discussion.infrastructure" {}
 }
 
 package "config" as CF #FCE4EC {
@@ -93,11 +107,14 @@ package "config" as CF #FCE4EC {
 PR ..> ID : identity.api.UsuarioDirectorio\nidentity.api.UsuarioRegistrado
 PR ..> PJ : project.api.ProyectoPublicoConsulta
 PJ ..> ID : identity.api.UsuarioDirectorio
+DI ..> ID : identity.api.UsuarioDirectorio
+DI ..> PJ : project.api.CatalogoTecnologiasConsulta
 
 ' --- Hacia el kernel: todos, y nadie al reves (regla 4)
 ID ..> SH
 PR ..> SH
 PJ ..> SH
+DI ..> SH
 CF ..> SH
 
 note bottom of CF
@@ -121,7 +138,7 @@ end note
 
 note as N2
   <b>Modulos previstos y no construidos</b>
-  discussion, interaction, messaging, moderation y analytics
+  interaction, messaging, moderation y analytics
   figuran en el ADR-001 y en el modelo de datos, pero no tienen
   codigo. No se dibujan aqui: el diagrama describe el sistema
   que existe.

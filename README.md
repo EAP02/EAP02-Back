@@ -1,7 +1,7 @@
 # DevNet — monolito modular
 
 Backend de una red social para desarrolladores. Spring Boot 4 sobre PostgreSQL,
-organizado en tres módulos de negocio (`identity`, `profile`, `project`) más un kernel
+organizado en cuatro módulos de negocio (`identity`, `profile`, `project`, `discussion`) más un kernel
 compartido.
 
 ## Documentación
@@ -78,6 +78,8 @@ En IntelliJ IDEA pueden agregarse en **Run > Edit Configurations > Environment v
 8. `GET /api/v1/perfiles/{usuarioId}`
 9. `GET /api/v1/proyectos?q=&tecnologia=` — explorar y buscar, sin token (HU-09); los
    `slug` de tecnología salen de `GET /api/v1/tecnologias`
+10. `POST /api/v1/discusiones` y `GET /api/v1/discusiones/{id}` — abrir una discusión y
+    leerla con su autor y su hilo (HU-11)
 
 Al registrar una cuenta, `identity` publica `UsuarioRegistrado` y `profile` crea el perfil
 inicial. La lectura pública del perfil obtiene los proyectos desde

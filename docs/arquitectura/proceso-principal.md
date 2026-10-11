@@ -15,7 +15,9 @@ misma transacción que el cambio.
 > resto se retiró en lugar de dejarlo descrito como si funcionara.
 
 > Nomenclatura: *publicación* es el supertipo que abarca **proyectos** y **discusiones**.
-> Solo los proyectos tienen implementación; la especialización está en el
+> Los proyectos recorren todo el ciclo que describe este documento. Las discusiones
+> (HU-11, módulo `discussion`) por ahora solo se crean ya publicadas; editarlas,
+> ocultarlas o archivarlas no está implementado. La especialización está en el
 > [modelo lógico](../bd/02-modelo-logico.md).
 
 ---
