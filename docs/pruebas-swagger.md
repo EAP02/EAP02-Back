@@ -308,6 +308,21 @@ llenará cuando exista la HU de comentarios.
 contrato público (`project.api.CatalogoTecnologiasConsulta`) para validar las etiquetas.
 `FronterasModularesTest` lo verifica en cada build.
 
+### 5.4 · Listar y filtrar discusiones · `GET /api/v1/discusiones`
+
+Sin token. Abre antes un par de discusiones más con etiquetas distintas.
+
+| Parámetros | Esperado | HU-12 |
+|---|---|---|
+| `tecnologia=java` | Solo discusiones con la etiqueta Java | Criterio 1 |
+| `limite=1` | Una discusión, `hayMas: true` y un `cursorSiguiente`; pásalo en `cursor` y sale la siguiente, nunca la misma | Criterio 2 |
+| `tecnologia=azure` | `200`, `contenido: []` y un `mensaje` que invita a abrir la primera | Criterio 3 |
+| `tecnologia=cobol` | `200`, vacío, y el mensaje dice que esa etiqueta no está en el catálogo | Criterio 3 |
+
+**Qué señalar:** paginación por cursor sobre `(publicado_en, id)`, no por `OFFSET`. Con
+`OFFSET`, abrir una discusión mientras alguien pasa de página desplaza todo una posición y
+la última de la página 1 reaparece en la 2. Con el cursor eso no puede pasar.
+
 ### 6 · Autorización denegada · `POST /api/v1/proyectos/{proyectoId}/ocultamiento`
 
 Con el token de **ana**, que es `DESARROLLADOR`:

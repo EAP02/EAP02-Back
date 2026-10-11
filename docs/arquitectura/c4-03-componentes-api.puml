@@ -21,7 +21,7 @@ Container_Boundary(api, "API DevNet") {
 
     Component(project, "Proyectos", "project", "Publicacion de proyectos y repositorios, consulta publica paginada por keyset, y ocultamiento de una publicacion por un moderador.")
 
-    Component(discussion, "Discusiones", "discussion", "Creacion de discusiones etiquetadas con el catalogo de tecnologias, y lectura publica con su autor y el hilo de participantes (HU-11). Persiste por JDBC: la entidad de publicacion es de project.")
+    Component(discussion, "Discusiones", "discussion", "Creacion de discusiones etiquetadas con el catalogo de tecnologias, lectura publica con su autor y el hilo de participantes (HU-11), y listado paginado por keyset filtrable por etiqueta (HU-12). Persiste por JDBC: la entidad de publicacion es de project.")
 
     Component(shared, "Kernel compartido", "shared", "Filtro de traceId, manejador global de errores (ADR-005), registro de auditoria, propiedades de configuracion y nombres de cache. No depende de ningun modulo.")
 
