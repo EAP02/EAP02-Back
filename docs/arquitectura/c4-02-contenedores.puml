@@ -1,34 +1,40 @@
 @startuml c4-02-contenedores
 ' DevNet - Red Social para Desarrolladores
 ' C4 Nivel 2: Diagrama de Contenedores
+'
+' §4.1: los diagramas deben coincidir con el codigo y la infraestructura desplegada.
+' Lo previsto se dibuja con borde discontinuo y la etiqueta "previsto".
+' Revisado en el sprint 2.
+'
 ' Sin conexion a internet, reemplazar el include por: !include <C4/C4_Container>
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
 
+AddElementTag("previsto", $fontColor="#777777", $borderColor="#999999", $bgColor="#F5F5F5", $borderStyle=DashedLine(), $legendText="Previsto: decidido, sin implementar")
+AddRelTag("previsto", $textColor="#888888", $lineColor="#999999", $lineStyle=DashedLine(), $legendText="Relacion prevista")
+
 title Nivel 2 - Contenedores: DevNet
 
-Person(desarrollador, "Desarrollador", "Miembro de la comunidad")
-Person(moderador, "Moderador", "Modera contenido reportado. MFA obligatorio.")
-Person(administrador, "Administrador", "Gestiona roles y consulta reportes. MFA obligatorio.")
+Person(usuario, "Usuario", "Visitante, desarrollador, moderador o administrador. Los roles con permisos de moderacion exigen MFA.")
 
 System_Boundary(devnet, "DevNet") {
-    Container(api, "API DevNet", "Java 17, Spring Boot 4.0.8, Docker", "Monolito modular. Concentra dominio, reglas de negocio, autorizacion RBAC y persistencia. Unico artefacto desplegable (ADR-001).")
-    Container(swagger, "Swagger UI", "springdoc-openapi", "Contrato OpenAPI 3.1 navegable. Es la unica superficie de interaccion del producto: el perfil avanzado no contempla frontend. Habilitado tambien en produccion (ADR-007).")
-    ContainerDb(bd, "Base de datos DevNet", "PostgreSQL 16 en Supabase", "29 tablas: usuarios, sesiones, perfiles, publicaciones, comentarios, mensajes, auditoria y metricas diarias. Esquema versionado con Flyway (V1 a V5). Parte de las tablas modelan capacidades aun sin implementar.")
-    ContainerDb(archivos, "Almacen de archivos", "Supabase Storage", "Avatares de perfil e imagenes de proyecto. Se accede tras la interfaz AlmacenArchivos para contener la dependencia de proveedor.")
+    Container(api, "API DevNet", "Java 17, Spring Boot 4.0.8, Docker en Render", "Monolito modular: identity, profile, project y discussion, mas el kernel shared. Reglas de negocio, autorizacion RBAC/ABAC y persistencia. Unico artefacto desplegable (ADR-001).")
+    Container(swagger, "Swagger UI", "springdoc-openapi", "Contrato OpenAPI 3.1 navegable, servido por la propia API. Unica superficie de interaccion: el perfil avanzado no contempla frontend. Abierto tambien en produccion (ADR-007).")
+    ContainerDb(bd, "Base de datos DevNet", "PostgreSQL 16 en Supabase", "29 tablas, esquema versionado con Flyway (V1 a V5). Parte de las tablas modelan capacidades aun sin implementar.")
+    ContainerDb(archivos, "Almacen de archivos", "Supabase Storage", "Avatares e imagenes de proyecto. Hoy el avatar es una URL externa.", $tags="previsto")
 }
 
-System_Ext(github, "GitHub", "OIDC/OAuth 2.0 y API de repositorios")
-System_Ext(grafana, "Grafana Cloud", "Metricas, tableros y alertas")
+System_Ext(actions, "GitHub Actions", "Pipeline CI/CD: compila, prueba con PostgreSQL real, publica la imagen en ghcr.io y despliega (docs/ci-cd.md).")
+System_Ext(github, "GitHub", "OIDC/OAuth 2.0 y API de repositorios.", $tags="previsto")
+System_Ext(grafana, "Grafana Cloud", "Metricas, tableros y alertas.", $tags="previsto")
 
-Rel(desarrollador, swagger, "Explora y ejecuta operaciones", "HTTPS")
-Rel(moderador, api, "Resuelve reportes", "HTTPS/JSON")
-Rel(administrador, api, "Administra", "HTTPS/JSON")
+Rel(usuario, swagger, "Explora y ejecuta operaciones", "HTTPS")
 Rel(swagger, api, "Invoca", "HTTPS/JSON")
+Rel(api, bd, "Lee y escribe", "TLS, PostgreSQL 5432, HikariCP max. 5")
+Rel(actions, api, "Despliega tras pasar las pruebas", "Deploy hook de Render")
 
-Rel(api, bd, "Lee y escribe", "TLS, PostgreSQL 5432, HikariCP")
-Rel(api, archivos, "Sube y firma URLs de descarga", "HTTPS")
-Rel(api, github, "Valida identidad y consulta repositorios", "HTTPS / OAuth 2.0")
-Rel(grafana, api, "Recolecta /actuator/prometheus", "HTTPS")
+Rel(api, archivos, "Sube y firma URLs de descarga", "HTTPS", $tags="previsto")
+Rel(api, github, "Valida identidad y consulta repositorios", "HTTPS / OAuth 2.0", $tags="previsto")
+Rel(grafana, api, "Recolecta /actuator/prometheus", "HTTPS", $tags="previsto")
 
 SHOW_LEGEND()
 
@@ -40,6 +46,7 @@ note as N1
   ADR-003  PostgreSQL administrado; Hibernate en ddl-auto=validate,
            Flyway es la unica fuente de verdad del esquema.
   ADR-004  La identidad vive en la API, no en Supabase Auth.
+           GitHub como IdP federado: decidido, sin implementar.
 end note
 
 @enduml
