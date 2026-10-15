@@ -12,6 +12,7 @@ compartido.
 | [docs/arquitectura/](docs/arquitectura/) | Vistas C4, diagrama de paquetes, proceso principal y RNF |
 | [docs/bd/](docs/bd/) | Modelo lógico, diccionario de datos, índices y consultas clave |
 | [docs/ci-cd.md](docs/ci-cd.md) | Pipeline de GitHub Actions y su configuración en GitHub y Render |
+| [docs/seguridad/owasp-top-10.md](docs/seguridad/owasp-top-10.md) | Identificación de vulnerabilidades con OWASP Top 10:2025, hallazgos y plazos de remediación |
 
 ## Requisitos
 
