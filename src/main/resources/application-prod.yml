@@ -18,6 +18,17 @@ spring:
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
 
+  flyway:
+    # Minimo privilegio (§5.3, docs/bd/db-roles.sql): las migraciones las aplica
+    # devnet_migrador, el unico rol que puede cambiar el esquema; la aplicacion
+    # corre con devnet_app, que solo lee y escribe datos.
+    #
+    # Retrocompatible a proposito: sin FLYWAY_USERNAME ni FLYWAY_PASSWORD, Flyway
+    # usa las mismas credenciales que el datasource, como antes. Asi este cambio
+    # puede desplegarse antes de aplicar los roles en Supabase sin romper nada.
+    user: ${FLYWAY_USERNAME:${DATABASE_USERNAME}}
+    password: ${FLYWAY_PASSWORD:${DATABASE_PASSWORD}}
+
 springdoc:
   # ADR-007: Swagger UI queda ABIERTO tambien en produccion, al reves de lo que
   # decidio el ADR-002.

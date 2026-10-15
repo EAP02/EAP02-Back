@@ -122,3 +122,11 @@ Ninguna de estas cifras justifica particionamiento en el alcance del proyecto. �
 evaluar particionamiento "únicamente cuando el volumen lo requiera", y se deja constancia
 de que se evaluó: `evento_reputacion` y `auditoria` serían las primeras candidatas, por
 fecha, si el sistema pasara a operación real.
+
+> **Contraste con datos cargados (sprint 2).** Con estos volúmenes de proyección cargados
+> ([`datos-representativos.sql`](datos-representativos.sql)), la base ocupa **240 MB**
+> **sin** `reaccion_publicacion`, `evento_reputacion` ni `auditoria`, que aún no tienen
+> funcionalidad que las escriba. Son las tres de mayor crecimiento: con ellas, el primer
+> año se acercaría o superaría los **500 MB del plan gratuito de Supabase**. Detalle por
+> tabla en [04-indices.md](04-indices.md#tamaño-en-disco). Para la actualización del
+> análisis de volumen del sprint 3.
