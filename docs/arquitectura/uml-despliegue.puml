@@ -1,8 +1,36 @@
 @startuml uml-despliegue
 ' DevNet - Diagrama UML de Despliegue
-' Entregable de Sprint 1 / refinado en Sprint 2 (lineamientos, 3.7)
+' Entregable de Sprint 1, refinado en Sprint 2 (lineamientos, 3.7)
+'
+' §4.1: el diagrama debe coincidir con la infraestructura desplegada. Lo que esta
+' decidido pero no existe se marca <<previsto>> (borde discontinuo, texto gris) y sus
+' conexiones van en linea discontinua. Nada de lo marcado asi esta en produccion.
 skinparam shadowing false
 skinparam linetype ortho
+
+skinparam node<<previsto>> {
+  BorderStyle dashed
+  BorderColor #999999
+  FontColor #777777
+  BackgroundColor #F5F5F5
+}
+skinparam component<<previsto>> {
+  BorderStyle dashed
+  BorderColor #999999
+  FontColor #777777
+  BackgroundColor #F5F5F5
+}
+skinparam artifact<<previsto>> {
+  BorderStyle dashed
+  BorderColor #999999
+  FontColor #777777
+  BackgroundColor #F5F5F5
+}
+skinparam cloud<<previsto>> {
+  BorderStyle dashed
+  BorderColor #999999
+  FontColor #777777
+}
 
 title Diagrama de despliegue - DevNet (entorno de produccion)
 
@@ -11,9 +39,9 @@ node "Cliente" as cliente {
   artifact "Coleccion de peticiones\n(pruebas y demo)" as col
 }
 
-cloud "Render  (region Oregon, us-west)" as render {
-  node "Web Service  devnet-api" as ws {
-    artifact "devnet-api:<version>\nImagen Docker multi-stage" as img
+cloud "Render" as render {
+  node "Web Service  eap02-back\nhttps://eap02-back.onrender.com" as ws {
+    artifact "Imagen Docker multi-stage\n(Dockerfile del repositorio)" as img
     component "JRE 17 (Temurin, alpine)" as jre
     component "Spring Boot 4.0.8\npuerto $PORT (Render lo asigna)" as boot
     note right of boot
@@ -29,52 +57,53 @@ cloud "Render  (region Oregon, us-west)" as render {
   }
 }
 
-cloud "Supabase  (region us-east)" as supabase {
-  database "PostgreSQL 16\ndevnet-prod" as pg {
+cloud "Supabase  (region us-east-1)" as supabase {
+  database "PostgreSQL 16" as pg {
     artifact "Esquema public\n(29 tablas, migraciones V1 a V5)" as esquema
-    artifact "Roles: devnet_migrador,\ndevnet_app, devnet_lectura" as roles
-  }
-  node "Storage" as storage {
-    artifact "bucket: avatares" as b1
-    artifact "bucket: proyectos" as b2
+    artifact "Roles devnet_migrador, devnet_app,\ndevnet_lectura (docs/bd/db-roles.sql)" <<previsto>> as roles
   }
   artifact "Respaldo automatico diario\ncon retencion del proveedor" as backup
+  node "Storage\nbuckets avatares, proyectos" <<previsto>> as storage
 }
 
 cloud "GitHub" as gh {
-  component "OAuth 2.0 / OIDC" as ghauth
-  component "REST API v3\n(metadatos de repositorios)" as ghapi
-  component "GitHub Actions\n(construccion y despliegue)" as ghact
-  artifact "Registro de imagenes\nghcr.io/<org>/devnet-api" as ghcr
+  artifact "Repositorio EAP02/EAP02-Back\nramas develop y main protegidas" as repo
+  component "GitHub Actions\n.github/workflows/ci.yml" as ghact
+  artifact "GitHub Container Registry\nghcr.io/eap02/eap02-back:<sha>" as ghcr
+  component "OAuth 2.0 / OIDC" <<previsto>> as ghauth
+  component "REST API v3\n(metadatos de repositorios)" <<previsto>> as ghapi
 }
 
-cloud "Grafana Cloud" as grafana {
-  component "Prometheus\n(recoleccion remota)" as prom
-  component "Tableros y alertas" as dash
+cloud "Grafana Cloud" <<previsto>> as grafana {
+  component "Prometheus\n(recoleccion remota)" <<previsto>> as prom
+  component "Tableros y alertas" <<previsto>> as dash
 }
 
-cliente --> ws : HTTPS 443\nTLS 1.3
+' --- Desplegado
+cliente --> ws : HTTPS 443\nTLS
 ws --> pg : TLS\nPostgreSQL 5432\nHikariCP, max 5 conexiones
-ws --> storage : HTTPS\nURLs firmadas
-ws --> ghauth : HTTPS\nAuthorization Code + PKCE
-ws --> ghapi : HTTPS\ntoken del usuario
-prom --> ws : HTTPS\nGET /actuator/prometheus cada 60 s
-ghact --> ghcr : publica imagen
-ghact ..> ws : despliega\n(deploy hook)
+repo --> ghact : PR o push a\ndevelop / main
+ghact --> ghcr : publica la imagen\n(solo main)
+ghact --> ws : deploy hook\n(solo main, tras las pruebas)
 pg --> backup : respaldo diario
 
+' --- Previsto
+ws ..> storage : HTTPS\nURLs firmadas\n(previsto)
+ws ..> ghauth : HTTPS\nAuthorization Code + PKCE\n(previsto)
+ws ..> ghapi : HTTPS\n(previsto)
+prom ..> ws : GET /actuator/prometheus\n(previsto, sprint 3)
+
 note as N_ENTORNOS #E8F5E9
-  <b>Entornos separados (lineamientos 7.3)</b>
+  <b>Entornos (lineamientos 7.3)</b>
 
-  Local        docker-compose: api + postgres:16 + prometheus + grafana
-  Pruebas      Testcontainers efimero por ejecucion del pipeline
-  Integracion  Render devnet-api-test  +  Supabase devnet-test
-  Produccion   Render devnet-api       +  Supabase devnet-prod
+  Local        docker-compose: postgres:16 (la API corre con ./mvnw)
+  Pruebas      Testcontainers efimero, en cada ejecucion del pipeline
+  Integracion  <i>previsto</i>: un segundo servicio de Render desde develop
+               y un proyecto Supabase aparte, sin compartir credenciales
+  Produccion   Render eap02-back (rama main) + Supabase
 
-  Son proyectos Supabase distintos, no esquemas del mismo,
-  para no reutilizar credenciales entre entornos.
-  Secretos en variables de entorno de Render y en GitHub Secrets;
-  nunca en el repositorio.
+  Secretos en variables de entorno de Render y en GitHub Secrets
+  (entorno 'produccion'); nunca en el repositorio.
 end note
 
 note as N_CONFIG #FFF3E0
@@ -98,5 +127,10 @@ note as N_CONFIG #FFF3E0
   Swagger UI queda HABILITADO tambien en produccion (ADR-007):
   sin frontend propio, es la unica superficie de interaccion.
 end note
+
+legend right
+  Linea continua: desplegado y en uso
+  Linea discontinua y <<previsto>>: decidido, sin implementar
+end legend
 
 @enduml
