@@ -26,8 +26,8 @@
 --  real en perfil prod: ver docs/bd/README.md)
 --    1. Sustituir los marcadores <...> por valores generados, nunca elegidos
 --       a mano. Por ejemplo:  openssl rand -base64 32
---    2. Ejecutarlo en el SQL Editor de Supabase. Si algo falla, nada queda a
---       medias: corregir y volver a ejecutar desde una base sin estos roles.
+--    2. Ejecutarlo en el SQL Editor de Supabase. Va entre BEGIN y COMMIT: si
+--       algo falla, no se aplica nada y se puede corregir y repetir.
 --    3. En Render, cambiar las variables y redesplegar:
 --         DATABASE_USERNAME / DATABASE_PASSWORD  -> devnet_app
 --         FLYWAY_USERNAME   / FLYWAY_PASSWORD    -> devnet_migrador
@@ -46,6 +46,9 @@
 -- ============================================================================
 
 
+-- Todo o nada: si una sentencia falla, no queda ningun rol creado a medias.
+BEGIN;
+
 -- ----------------------------------------------------------------------------
 -- 1. Creacion de roles
 -- ----------------------------------------------------------------------------
@@ -60,6 +63,14 @@ CREATE ROLE devnet_app LOGIN PASSWORD '<CLAVE_APP>';
 
 -- Solo lectura, para analisis y para la sustentacion.
 CREATE ROLE devnet_lectura LOGIN PASSWORD '<CLAVE_LECTURA>';
+
+-- Quien ejecuta el script tiene que ser MIEMBRO de devnet_migrador, y antes de
+-- la seccion 4: tanto ALTER DEFAULT PRIVILEGES FOR ROLE devnet_migrador como
+-- ceder la propiedad de objetos (seccion 4b) lo exigen. Un superusuario no lo
+-- necesita, por eso no fallo en las pruebas locales; en Supabase el rol postgres
+-- NO es superusuario, y sin esta linea el script se detiene con
+-- "permission denied to change default privileges".
+GRANT devnet_migrador TO CURRENT_USER;
 
 
 -- ----------------------------------------------------------------------------
@@ -117,35 +128,50 @@ ALTER DEFAULT PRIVILEGES FOR ROLE devnet_migrador IN SCHEMA public
 --    Incluye flyway_schema_history: Flyway escribe en ella en cada migracion.
 --
 --    En Supabase el rol administrativo (postgres) no es superusuario: para ceder
---    la propiedad tiene que ser miembro del rol que la recibe. De ahi el GRANT.
+--    la propiedad tiene que ser miembro del rol que la recibe. Esa membresia se
+--    concede en la seccion 1.
 -- ----------------------------------------------------------------------------
-
-GRANT devnet_migrador TO CURRENT_USER;
 
 DO $$
 DECLARE
     objeto record;
 BEGIN
+    -- Solo lo que es del rol que ejecuta el script y no pertenece a una extension.
+    -- En Supabase, public suele tener funciones de extensiones (propiedad de
+    -- supabase_admin): intentar cederlas abortaria todo el script.
     FOR objeto IN
-        SELECT format('ALTER TABLE %I.%I OWNER TO devnet_migrador', schemaname, tablename) AS sentencia
-        FROM pg_tables WHERE schemaname = 'public'
+        SELECT format('ALTER TABLE %I.%I OWNER TO devnet_migrador', n.nspname, c.relname) AS sentencia
+        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND c.relkind IN ('r', 'p')
+          AND pg_get_userbyid(c.relowner) = CURRENT_USER
+          AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
         UNION ALL
-        SELECT format('ALTER SEQUENCE %I.%I OWNER TO devnet_migrador', sequence_schema, sequence_name)
-        FROM information_schema.sequences WHERE sequence_schema = 'public'
+        SELECT format('ALTER SEQUENCE %I.%I OWNER TO devnet_migrador', n.nspname, c.relname)
+        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND c.relkind = 'S'
+          AND pg_get_userbyid(c.relowner) = CURRENT_USER
+          -- Las de columnas IDENTITY cambian de propietario con su tabla.
+          AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype IN ('e', 'i', 'a'))
         UNION ALL
-        SELECT format('ALTER VIEW %I.%I OWNER TO devnet_migrador', schemaname, viewname)
-        FROM pg_views WHERE schemaname = 'public'
+        SELECT format('ALTER VIEW %I.%I OWNER TO devnet_migrador', n.nspname, c.relname)
+        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND c.relkind = 'v'
+          AND pg_get_userbyid(c.relowner) = CURRENT_USER
+          AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
         UNION ALL
         SELECT format('ALTER FUNCTION %s OWNER TO devnet_migrador', p.oid::regprocedure)
         FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
         WHERE n.nspname = 'public'
+          AND pg_get_userbyid(p.proowner) = CURRENT_USER
+          AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
     LOOP
         EXECUTE objeto.sentencia;
     END LOOP;
 END $$;
 
--- Las secuencias de las columnas IDENTITY pertenecen a su tabla y cambian de
--- propietario con ella: el ALTER SEQUENCE solo afecta a las independientes.
 
 
 -- ----------------------------------------------------------------------------
@@ -165,6 +191,9 @@ SELECT id, nombre_usuario, estado, creado_en
 FROM usuario;
 
 GRANT SELECT ON v_usuario_publico TO devnet_lectura;
+
+
+COMMIT;
 
 
 -- ----------------------------------------------------------------------------
