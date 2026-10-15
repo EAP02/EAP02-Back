@@ -13,7 +13,9 @@ Documentación del curso de **Bases de Datos**. Las decisiones que la sostienen 
 | [03-diccionario-datos.md](03-diccionario-datos.md) | Inventario de las 29 tablas, consultas para generar el diccionario, clasificación de datos | Sprint 1–2 |
 | [04-indices.md](04-indices.md) | Justificación de cada índice, costo de escritura, procedimiento de verificación | Sprint 2 |
 | [05-consultas-no-triviales.sql](05-consultas-no-triviales.sql) | Las nueve consultas clave, ejecutables, más tres verificaciones de integridad | Sprint 2 |
-| [db-roles.sql](db-roles.sql) | Roles de base de datos y privilegios mínimos | Sprint 2 |
+| [db-roles.sql](db-roles.sql) | Roles de base de datos y privilegios mínimos, con el procedimiento para aplicarlos | Sprint 2 |
+| [datos-representativos.sql](datos-representativos.sql) | Carga los volúmenes de la proyección a un año, con distribuciones sesgadas, para medir | Sprint 2 |
+| [medicion-planes.sql](medicion-planes.sql) | Mide p50/p95 e índices usados de las consultas clave y de las del sprint 2 | Sprint 2 |
 | [verificacion-instalacion.sql](verificacion-instalacion.sql) | Comprobaciones post-instalación con sus valores esperados | Sprint 2 |
 | [`db/migration/`](../../src/main/resources/db/migration/) | **Modelo físico** (V1 a V5) | Sprint 1 (literal) |
 
@@ -56,13 +58,33 @@ Es el orden en que se construyó, y el que hace que cada decisión se entienda:
 
 | Sprint | Pendiente |
 |---|---|
-| 2 | Ejecutar `db-roles.sql` en ambos proyectos Supabase. Poblar con datos representativos y completar el registro de mediciones de [04-indices.md](04-indices.md) con `EXPLAIN ANALYZE` real |
+| 2 | ~~Poblar con datos representativos y completar el registro de mediciones~~ **Hecho**: ver [04-indices.md](04-indices.md#registro-de-mediciones). **Pendiente:** ejecutar `db-roles.sql` en Supabase y configurar las cuatro variables en Render (procedimiento en la cabecera del script) |
 | 3 | `V3`: triggers de auditoría sobre tablas críticas, triggers de mantenimiento de contadores, y el procedimiento almacenado `sp_consolidar_metricas_diarias`. Actualizar el análisis de volumen |
 
 Los triggers y el procedimiento se dejan para el sprint 3 porque así lo pide el cronograma
 de §3.7 ("triggers y procedimientos **coherentes con las HU**"), y porque para entonces las
 historias que los justifican ya estarán implementadas. Un procedimiento escrito antes de la
 historia que lo necesita es una suposición, no un diseño.
+
+## Roles de base de datos: verificados antes de aplicarlos
+
+`db-roles.sql` se probó en el sprint 2 contra una base con V1 a V5 **y con la aplicación
+real en perfil `prod`**, antes de tocar Supabase:
+
+| Comprobación | Resultado |
+|---|---|
+| La aplicación arranca conectada como `devnet_app` y Flyway como `devnet_migrador` | ✅ |
+| Una migración nueva que **altera una tabla existente** se aplica como `devnet_migrador` | ✅ (falló en la primera prueba; ver abajo) |
+| La API lee, registra usuarios, inicia sesión y escribe auditoría como `devnet_app` | ✅ |
+| `devnet_app` no puede crear ni alterar objetos | ✅ `permission denied` / `must be owner` |
+| `devnet_lectura` no ve `usuario`, `token_refresco` ni `mensaje`; sí la vista `v_usuario_publico` | ✅ |
+
+La primera versión del script **habría roto la siguiente migración en producción**:
+concedía privilegios, pero las tablas seguían perteneciendo al rol administrativo, y en
+PostgreSQL solo el propietario puede hacer `ALTER TABLE`. Se añadió la sección 4b, que cede
+la propiedad de todos los objetos (incluida `flyway_schema_history`) a `devnet_migrador`, y
+`application-prod.yml` admite ahora un usuario de Flyway distinto del de la aplicación
+(`FLYWAY_USERNAME` / `FLYWAY_PASSWORD`), retrocompatible si no se define.
 
 ## Cómo levantar la base en local
 

@@ -117,6 +117,10 @@ note as N_CONFIG #FFF3E0
   CORS_ORIGENES
   JWT_CLAVE_PRIVADA / JWT_CLAVE_PUBLICA
 
+  Opcionales: FLYWAY_USERNAME / FLYWAY_PASSWORD. Flyway migra con
+  ellas (devnet_migrador) y la app corre con DATABASE_* (devnet_app);
+  sin ellas, Flyway usa las de la app (docs/bd/db-roles.sql).
+
   SPRING_PROFILES_ACTIVE=prod ya viene en el Dockerfile.
   PORT lo inyecta Render y application.yml lo respeta.
 

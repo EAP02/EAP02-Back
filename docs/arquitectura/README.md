@@ -13,6 +13,7 @@ todo lo que hay aquí están en [docs/adr/](../adr/); este directorio contiene l
 | [uml-paquetes.puml](uml-paquetes.puml) | Paquetes y componentes **con interfaces** | Sprint 1 (literal) |
 | [uml-despliegue.puml](uml-despliegue.puml) | Despliegue | Sprint 1, refinado en Sprint 2 |
 | [../ci-cd.md](../ci-cd.md) | Pipeline CI/CD con GitHub Actions | Sprint 2 |
+| [apis-priorizadas.md](apis-priorizadas.md) | Inventario de endpoints, criterio de prioridad y siguientes APIs | Sprint 2 |
 | [proceso-principal.md](proceso-principal.md) | Máquinas de estado y reglas de negocio | Sprint 1 |
 | [requisitos-no-funcionales.md](requisitos-no-funcionales.md) | Atributos de calidad con objetivos medibles | Sprint 1 |
 

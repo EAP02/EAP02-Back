@@ -2,8 +2,8 @@
 --  DevNet - Roles de base de datos y privilegios
 --
 --  ESTO NO ES UNA MIGRACION DE FLYWAY. Es aprovisionamiento del entorno: se
---  ejecuta UNA VEZ por proyecto Supabase, con un rol administrativo, antes de
---  la primera migracion.
+--  ejecuta UNA VEZ por proyecto Supabase, con el rol administrativo (postgres),
+--  sobre una base que ya tiene el esquema aplicado.
 --
 --  Por que fuera de Flyway: las migraciones describen el ESQUEMA, que es igual
 --  en todos los entornos. Los roles y sus contrasenas son propios de cada
@@ -13,15 +13,34 @@
 --  funciones administrativas y rotar credenciales gestionadas como secretos".
 --  ADR-003 fija el reparto de privilegios.
 --
---  USO
+--  QUIEN USA CADA ROL
+--    devnet_migrador  Flyway, al arrancar la aplicacion (spring.flyway.user en
+--                     application-prod.yml, variables FLYWAY_USERNAME/PASSWORD).
+--                     Es el propietario de todos los objetos del esquema.
+--    devnet_app       La aplicacion en ejecucion (DATABASE_USERNAME/PASSWORD).
+--                     Lee y escribe datos; no puede crear ni alterar objetos.
+--    devnet_lectura   Uso manual, para analisis y sustentacion. No ve
+--                     credenciales ni mensajes privados.
+--
+--  PROCEDIMIENTO (verificado de punta a punta en el sprint 2 con la aplicacion
+--  real en perfil prod: ver docs/bd/README.md)
 --    1. Sustituir los marcadores <...> por valores generados, nunca elegidos
 --       a mano. Por ejemplo:  openssl rand -base64 32
---    2. Ejecutar con el rol administrativo del proyecto.
---    3. Guardar las credenciales en el gestor de secretos del entorno:
---         devnet_migrador -> GitHub Secrets (solo el paso de migracion)
---         devnet_app      -> variables de entorno de Render
---         devnet_lectura  -> uso manual para analisis y sustentacion
---    4. Borrar este archivo del historial de la terminal despues de ejecutarlo.
+--    2. Ejecutarlo en el SQL Editor de Supabase. Si algo falla, nada queda a
+--       medias: corregir y volver a ejecutar desde una base sin estos roles.
+--    3. En Render, cambiar las variables y redesplegar:
+--         DATABASE_USERNAME / DATABASE_PASSWORD  -> devnet_app
+--         FLYWAY_USERNAME   / FLYWAY_PASSWORD    -> devnet_migrador
+--       Con el pooler de Supabase el usuario lleva el sufijo del proyecto:
+--       devnet_app.<project-ref> y devnet_migrador.<project-ref>, igual que
+--       hoy postgres.<project-ref>.
+--    4. Comprobar /actuator/health y una operacion de escritura (por ejemplo,
+--       un inicio de sesion, que escribe en auditoria).
+--    5. Borrar este archivo del historial de la terminal despues de ejecutarlo.
+--
+--    Mientras FLYWAY_USERNAME no este definida, Flyway usa las credenciales del
+--    datasource: aplicar el paso 3 a medias (solo DATABASE_*) dejaria a Flyway
+--    sin permiso para la siguiente migracion. Las cuatro variables van juntas.
 --
 --  NUNCA versionar este archivo con las contrasenas sustituidas.
 -- ============================================================================
@@ -83,6 +102,50 @@ ALTER DEFAULT PRIVILEGES FOR ROLE devnet_migrador IN SCHEMA public
 
 ALTER DEFAULT PRIVILEGES FOR ROLE devnet_migrador IN SCHEMA public
     GRANT SELECT ON TABLES TO devnet_lectura;
+
+
+-- ----------------------------------------------------------------------------
+-- 4b. Propiedad de los objetos existentes
+--
+--    Anadido en el sprint 2 tras probar este script contra una base con V1 a V5:
+--    sin esta seccion, la siguiente migracion que altere una tabla existente
+--    falla con "must be owner of table ...". En PostgreSQL solo el PROPIETARIO
+--    puede hacer ALTER TABLE, y las tablas de V1 a V5 las creo el rol
+--    administrativo, no devnet_migrador. Los privilegios por defecto de la
+--    seccion 4 solo cubren los objetos que devnet_migrador cree a partir de ahora.
+--
+--    Incluye flyway_schema_history: Flyway escribe en ella en cada migracion.
+--
+--    En Supabase el rol administrativo (postgres) no es superusuario: para ceder
+--    la propiedad tiene que ser miembro del rol que la recibe. De ahi el GRANT.
+-- ----------------------------------------------------------------------------
+
+GRANT devnet_migrador TO CURRENT_USER;
+
+DO $$
+DECLARE
+    objeto record;
+BEGIN
+    FOR objeto IN
+        SELECT format('ALTER TABLE %I.%I OWNER TO devnet_migrador', schemaname, tablename) AS sentencia
+        FROM pg_tables WHERE schemaname = 'public'
+        UNION ALL
+        SELECT format('ALTER SEQUENCE %I.%I OWNER TO devnet_migrador', sequence_schema, sequence_name)
+        FROM information_schema.sequences WHERE sequence_schema = 'public'
+        UNION ALL
+        SELECT format('ALTER VIEW %I.%I OWNER TO devnet_migrador', schemaname, viewname)
+        FROM pg_views WHERE schemaname = 'public'
+        UNION ALL
+        SELECT format('ALTER FUNCTION %s OWNER TO devnet_migrador', p.oid::regprocedure)
+        FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public'
+    LOOP
+        EXECUTE objeto.sentencia;
+    END LOOP;
+END $$;
+
+-- Las secuencias de las columnas IDENTITY pertenecen a su tabla y cambian de
+-- propietario con ella: el ALTER SEQUENCE solo afecta a las independientes.
 
 
 -- ----------------------------------------------------------------------------
