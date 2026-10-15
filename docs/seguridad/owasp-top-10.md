@@ -63,15 +63,18 @@ consolidan al final con severidad y plazo.
 - **H-03** · Swagger UI y `/v3/api-docs` están abiertos en producción. Es un **riesgo
   aceptado** y registrado en el ADR-007: sin frontend es la única superficie de demostración.
   Expone la enumeración de endpoints, no acceso.
-- **H-04** · Los roles de base de datos de mínimo privilegio (`devnet_app`,
-  `devnet_lectura`) están escritos en `docs/bd/db-roles.sql` pero no aplicados. Si
-  producción conecta como `postgres`, la API tiene permisos de administrador sobre el
-  esquema (§5.3).
+- **H-04** · ~~Los roles de base de datos de mínimo privilegio estaban escritos en
+  `docs/bd/db-roles.sql` pero no aplicados, y producción conectaba como `postgres`.~~
+  **Resuelto el 14 de octubre de 2026:** producción conecta como `devnet_app`, que lee y
+  escribe datos pero no puede crear ni alterar objetos, y las migraciones las aplica
+  `devnet_migrador`, propietario del esquema. `devnet_lectura` no ve credenciales ni
+  mensajes. Procedimiento y pruebas en [`docs/bd/README.md`](../bd/README.md).
 - **H-05** · No hay `Content-Security-Policy`. En una API que solo devuelve JSON el impacto
   es bajo, pero Swagger UI sí sirve HTML desde el mismo origen.
-- **H-06** · `.env.example` propone el pooler de transacción (puerto 6543), mientras el
+- **H-06** · ~~`.env.example` proponía el pooler de transacción (puerto 6543), mientras el
   diagrama de despliegue documenta que debe usarse el de sesión (5432) por el bloqueo de
-  Flyway. Riesgo de configuración, no de seguridad directa.
+  Flyway.~~ **Resuelto el 14 de octubre de 2026:** la plantilla usa el *Session pooler*
+  (5432) y explica por qué.
 
 ## A03:2025 — Software Supply Chain Failures
 
@@ -257,14 +260,15 @@ consolidan al final con severidad y plazo.
 
 ### Tabla de hallazgos
 
-No se identificaron vulnerabilidades **críticas**.
+No se identificaron vulnerabilidades **críticas**. De las cuatro altas, H-04 se resolvió
+el mismo sprint del análisis; quedan tres abiertas.
 
 | ID | Categoría | Hallazgo | Severidad | Plazo / encaje |
 |---|---|---|---|---|
 | H-12 | A06 | Sin limitación de tasa; el bloqueo por intentos permite bloquear cuentas ajenas | **Alta** | Sprint 3, junto con el aseguramiento de tokens (§3.7) |
 | H-07 | A03 | Sin SCA de dependencias | **Alta** | Coordinar con Calidad de Software: va en el pipeline (§7.2) |
 | H-14 | A07 | MFA sin implementación | **Alta** | Requiere HU propia en el backlog |
-| H-04 | A02 | Roles de BD de mínimo privilegio sin aplicar | **Alta** | Sprint 2 — Bases de Datos (aplicar `db-roles.sql`) |
+| ~~H-04~~ | A02 | Roles de BD de mínimo privilegio sin aplicar | ~~Alta~~ | ✅ **Resuelto** el 14/10/2026 |
 | H-15 | A07 | Sin control de credenciales comprometidas | Media | Requiere HU propia |
 | H-01 | A01 | Sin suspensión de cuentas ni gestión de roles por API | Media | Requiere HU propia |
 | H-19 | A09 | Sin alertas sobre eventos de seguridad | Media | Sprint 3 (Prometheus/Grafana, §3.7) |
@@ -278,7 +282,7 @@ No se identificaron vulnerabilidades **críticas**.
 | H-05 | A02 | Sin `Content-Security-Policy` | Baja | Backlog técnico |
 | H-09 | A03 | Sin SBOM | Baja | Con H-07 |
 | H-22 | A09 | Auditoría sin retención | Baja | Sprint 3, con el análisis de volumen |
-| H-06 | A02 | `.env.example` con el pooler de transacción | Baja | Corrección de documentación |
+| ~~H-06~~ | A02 | `.env.example` con el pooler de transacción | ~~Baja~~ | ✅ **Resuelto** el 14/10/2026 |
 | H-02 | A01 | SSRF cuando se integre la API de GitHub | — | Revisar al implementarla |
 | H-10 | A04 | Par JWT efímero fuera de `prod` | — | Intencional; sin acción |
 | H-03 | A02 | Swagger UI abierto en producción | — | **Riesgo aceptado**, ADR-007 |

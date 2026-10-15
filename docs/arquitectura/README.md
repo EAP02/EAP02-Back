@@ -86,8 +86,9 @@ Los diagramas de contexto, contenedores y despliegue distinguen dos cosas:
   por el cronograma de §3.7— pero no implementado.
 
 Hoy son previstos: GitHub como proveedor de identidad y fuente de metadatos de
-repositorios, Supabase Storage, Prometheus/Grafana, el entorno de integración y los roles
-de base de datos de [`db-roles.sql`](../bd/db-roles.sql). Se dibujan en lugar de borrarse
+repositorios, Supabase Storage, Prometheus/Grafana y el entorno de integración. Los roles
+de base de datos de [`db-roles.sql`](../bd/db-roles.sql) dejaron de serlo el 14 de octubre
+de 2026, al aplicarse en producción. Se dibujan en lugar de borrarse
 porque son el rumbo acordado; se marcan porque §4.1 exige que el diagrama coincida con lo
 desplegado. Cuando uno se implemente, pierde la etiqueta en el mismo sprint.
 

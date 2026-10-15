@@ -57,10 +57,10 @@ cloud "Render" as render {
   }
 }
 
-cloud "Supabase  (region us-east-1)" as supabase {
+cloud "Supabase  (region us-west-2)" as supabase {
   database "PostgreSQL 16" as pg {
     artifact "Esquema public\n(29 tablas, migraciones V1 a V5)" as esquema
-    artifact "Roles devnet_migrador, devnet_app,\ndevnet_lectura (docs/bd/db-roles.sql)" <<previsto>> as roles
+    artifact "Roles de minimo privilegio (docs/bd/db-roles.sql)\ndevnet_migrador: propietario, aplica migraciones\ndevnet_app: la API, solo datos\ndevnet_lectura: analisis, sin credenciales" as roles
   }
   artifact "Respaldo automatico diario\ncon retencion del proveedor" as backup
   node "Storage\nbuckets avatares, proyectos" <<previsto>> as storage
@@ -81,7 +81,7 @@ cloud "Grafana Cloud" <<previsto>> as grafana {
 
 ' --- Desplegado
 cliente --> ws : HTTPS 443\nTLS
-ws --> pg : TLS\nPostgreSQL 5432\nHikariCP, max 5 conexiones
+ws --> pg : TLS, Session pooler 5432\napp: devnet_app (HikariCP, max 5)\nFlyway: devnet_migrador
 repo --> ghact : PR o push a\ndevelop / main
 ghact --> ghcr : publica la imagen\n(solo main)
 ghact --> ws : deploy hook\n(solo main, tras las pruebas)
@@ -108,7 +108,7 @@ end note
 
 note as N_CONFIG #FFF3E0
   <b>Configuracion inyectada por entorno</b>
-  Las SIETE que exige application-prod.yml. Si falta una,
+  Las SIETE que exige application-prod.yml, mas las dos de Flyway. Si falta una,
   la aplicacion NO arranca: es preferible un fallo ruidoso
   al desplegar que un servicio con una credencial por defecto.
 
@@ -117,9 +117,10 @@ note as N_CONFIG #FFF3E0
   CORS_ORIGENES
   JWT_CLAVE_PRIVADA / JWT_CLAVE_PUBLICA
 
-  Opcionales: FLYWAY_USERNAME / FLYWAY_PASSWORD. Flyway migra con
-  ellas (devnet_migrador) y la app corre con DATABASE_* (devnet_app);
-  sin ellas, Flyway usa las de la app (docs/bd/db-roles.sql).
+  FLYWAY_USERNAME / FLYWAY_PASSWORD: Flyway migra con ellas
+  (devnet_migrador) y la app corre con DATABASE_* (devnet_app).
+  Opcionales en el codigo, obligatorias en produccion desde que
+  se aplicaron los roles (docs/bd/db-roles.sql).
 
   SPRING_PROFILES_ACTIVE=prod ya viene en el Dockerfile.
   PORT lo inyecta Render y application.yml lo respeta.
