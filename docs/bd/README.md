@@ -58,7 +58,7 @@ Es el orden en que se construyó, y el que hace que cada decisión se entienda:
 
 | Sprint | Pendiente |
 |---|---|
-| 2 | ~~Poblar con datos representativos y completar el registro de mediciones~~ **Hecho**: ver [04-indices.md](04-indices.md#registro-de-mediciones). **Pendiente:** ejecutar `db-roles.sql` en Supabase y configurar las cuatro variables en Render (procedimiento en la cabecera del script) |
+| 2 | ~~Poblar con datos representativos y completar el registro de mediciones~~ **Hecho**: ver [04-indices.md](04-indices.md#registro-de-mediciones). Roles de `db-roles.sql` **aplicados en producción** el 14/10/2026 |
 | 3 | `V3`: triggers de auditoría sobre tablas críticas, triggers de mantenimiento de contadores, y el procedimiento almacenado `sp_consolidar_metricas_diarias`. Actualizar el análisis de volumen |
 
 Los triggers y el procedimiento se dejan para el sprint 3 porque así lo pide el cronograma
@@ -66,10 +66,15 @@ de §3.7 ("triggers y procedimientos **coherentes con las HU**"), y porque para 
 historias que los justifican ya estarán implementadas. Un procedimiento escrito antes de la
 historia que lo necesita es una suposición, no un diseño.
 
-## Roles de base de datos: verificados antes de aplicarlos
+## Roles de base de datos: aplicados en producción
 
-`db-roles.sql` se probó en el sprint 2 contra una base con V1 a V5 **y con la aplicación
-real en perfil `prod`**, antes de tocar Supabase:
+**Estado:** aplicados en producción el **14 de octubre de 2026**. La API conecta como
+`devnet_app` y Flyway como `devnet_migrador`, ambos por el *Session pooler* de Supabase
+(`<rol>.<project-ref>`, puerto 5432). Las contraseñas están en las variables de Render y
+en el gestor de contraseñas del equipo; nunca en el repositorio.
+
+Antes de tocar Supabase, `db-roles.sql` se probó contra una base con V1 a V5 **y con la
+aplicación real en perfil `prod`**:
 
 | Comprobación | Resultado |
 |---|---|
@@ -85,6 +90,22 @@ PostgreSQL solo el propietario puede hacer `ALTER TABLE`. Se añadió la secció
 la propiedad de todos los objetos (incluida `flyway_schema_history`) a `devnet_migrador`, y
 `application-prod.yml` admite ahora un usuario de Flyway distinto del de la aplicación
 (`FLYWAY_USERNAME` / `FLYWAY_PASSWORD`), retrocompatible si no se define.
+
+**Al aplicarlo en Supabase falló una segunda vez**, con `permission denied to change default
+privileges`. Las pruebas locales corrían con un superusuario, y en Supabase el rol
+`postgres` **no lo es**: para `ALTER DEFAULT PRIVILEGES FOR ROLE devnet_migrador` tiene que
+ser miembro de ese rol, y la membresía se concedía demasiado tarde en el script. Se corrigió
+y se volvió a probar con un rol sin superusuario, dueño de la base (como `postgres` en
+Supabase) y con una extensión instalada en `public`. Tres lecciones quedan en el script:
+
+- todo va entre `BEGIN` y `COMMIT`, así que un fallo no deja nada a medias (el intento
+  fallido en Supabase no aplicó nada);
+- la membresía en `devnet_migrador` se concede justo después de crear los roles;
+- la cesión de propiedad omite los objetos de extensiones, que en Supabase pertenecen a
+  `supabase_admin`.
+
+**Probar con superusuario un script que en producción ejecuta un rol que no lo es oculta
+justo los errores que importan.**
 
 ## Cómo levantar la base en local
 
