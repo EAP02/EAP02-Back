@@ -1,29 +1,40 @@
 @startuml c4-01-contexto
 ' DevNet - Red Social para Desarrolladores
 ' C4 Nivel 1: Diagrama de Contexto del Sistema
+'
+' §4.1: los diagramas deben coincidir con el codigo y la infraestructura desplegada.
+' Lo que esta decidido pero aun no existe se dibuja con borde discontinuo y la etiqueta
+' "previsto": se conserva la vision (ADR-004) sin presentarla como funcionando.
+' Revisado en el sprint 2.
+'
 ' Sin conexion a internet, reemplazar el include por: !include <C4/C4_Context>
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
 
+AddElementTag("previsto", $fontColor="#777777", $borderColor="#999999", $bgColor="#F5F5F5", $borderStyle=DashedLine(), $legendText="Previsto: decidido, sin implementar")
+AddRelTag("previsto", $textColor="#888888", $lineColor="#999999", $lineStyle=DashedLine(), $legendText="Relacion prevista")
+
 title Nivel 1 - Contexto del sistema: DevNet
 
-Person(desarrollador, "Desarrollador", "Miembro de la comunidad. Declara su perfil tecnico y publica proyectos con sus repositorios.")
-Person(moderador, "Moderador", "Retira de la vista publica un proyecto, dejando el motivo por escrito. Requiere MFA.")
-Person(administrador, "Administrador", "Gestiona roles y catalogo de tecnologias, y consulta la auditoria. Requiere MFA.")
+Person(visitante, "Visitante", "Sin cuenta. Explora proyectos, discusiones, perfiles y el catalogo de tecnologias.")
+Person(desarrollador, "Desarrollador", "Miembro de la comunidad. Declara su perfil tecnico, publica, edita y elimina sus proyectos, y abre discusiones.")
+Person(moderador, "Moderador", "Oculta, edita o elimina contenido ajeno dejando rastro en auditoria. Requiere MFA.")
+Person(administrador, "Administrador", "Mismos permisos de moderacion; gestionar roles y consultar la auditoria esta modelado sin endpoint. Requiere MFA.")
 
-System(devnet, "DevNet", "Red social especializada en desarrolladores. Expone una API REST versionada con perfiles tecnicos, publicacion de proyectos y control de acceso por rol.")
+System(devnet, "DevNet", "Red social especializada en desarrolladores. API REST versionada (/api/v1) con perfiles tecnicos, proyectos, discusiones y control de acceso por rol.")
 
-System_Ext(github, "GitHub", "Proveedor de identidad OIDC/OAuth 2.0 y origen de metadatos de repositorios publicados.")
-System_Ext(supabase, "Supabase", "PostgreSQL administrado y almacenamiento de objetos para avatares e imagenes de proyecto.")
-System_Ext(observabilidad, "Grafana Cloud", "Recolecta metricas expuestas por la API y sirve tableros y alertas.")
+System_Ext(supabase, "Supabase", "PostgreSQL 16 administrado. Unico almacen de datos de DevNet.")
+System_Ext(github, "GitHub", "Repositorio del codigo y GitHub Actions (CI/CD). Como proveedor de identidad OIDC y fuente de metadatos de repositorios: previsto.")
+System_Ext(observabilidad, "Grafana Cloud", "Metricas, tableros y alertas.", $tags="previsto")
 
-Rel(desarrollador, devnet, "Consume la API REST", "HTTPS/JSON")
-Rel(moderador, devnet, "Oculta contenido con motivo", "HTTPS/JSON")
-Rel(administrador, devnet, "Administra y consulta la auditoria", "HTTPS/JSON")
+Rel(visitante, devnet, "Lee contenido publico", "HTTPS/JSON")
+Rel(desarrollador, devnet, "Usa la API REST", "HTTPS/JSON")
+Rel(moderador, devnet, "Modera contenido", "HTTPS/JSON")
+Rel(administrador, devnet, "Modera contenido", "HTTPS/JSON")
 
-Rel(devnet, github, "Autentica usuarios y lee metadatos de repositorios", "HTTPS / OAuth 2.0 + REST")
-Rel(desarrollador, github, "Autoriza el acceso a su cuenta", "HTTPS / OAuth 2.0")
-Rel(devnet, supabase, "Persiste datos y archivos", "TLS / PostgreSQL + HTTPS")
-Rel(devnet, observabilidad, "Expone metricas para recoleccion", "HTTPS / Prometheus")
+Rel(devnet, supabase, "Persiste los datos", "TLS / PostgreSQL")
+Rel(github, devnet, "Construye, prueba y despliega", "GitHub Actions + deploy hook de Render")
+Rel(devnet, github, "Autentica usuarios y lee metadatos de repositorios", "HTTPS / OAuth 2.0 + REST", $tags="previsto")
+Rel(observabilidad, devnet, "Recolecta metricas", "HTTPS / Prometheus", $tags="previsto")
 
 SHOW_LEGEND()
 
@@ -34,12 +45,11 @@ note right of devnet
 end note
 
 note bottom of devnet
-  <b>Alcance construido</b>
-  El caso de negocio contempla ademas discusiones, comentarios,
-  mensajeria privada y reportes de comunidad. Esas capacidades
-  estan en el modelo de datos (docs/bd/02-modelo-logico.md) pero
-  no tienen implementacion: lo construido son perfiles tecnicos,
-  proyectos y el modulo transversal de identidad.
+  <b>Alcance construido (sprint 2)</b>
+  Identidad y sesiones, perfiles tecnicos, proyectos (publicar,
+  editar, eliminar, buscar) y discusiones (crear, listar, ver el hilo).
+  Comentarios, mensajeria privada y reportes de comunidad estan en el
+  modelo de datos (docs/bd/02-modelo-logico.md) sin implementacion.
 end note
 
 @enduml

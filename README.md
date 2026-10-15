@@ -11,6 +11,8 @@ compartido.
 | [docs/adr/](docs/adr/) | Las seis decisiones de arquitectura, con su contexto y su verificación |
 | [docs/arquitectura/](docs/arquitectura/) | Vistas C4, diagrama de paquetes, proceso principal y RNF |
 | [docs/bd/](docs/bd/) | Modelo lógico, diccionario de datos, índices y consultas clave |
+| [docs/ci-cd.md](docs/ci-cd.md) | Pipeline de GitHub Actions y su configuración en GitHub y Render |
+| [docs/seguridad/owasp-top-10.md](docs/seguridad/owasp-top-10.md) | Identificación de vulnerabilidades con OWASP Top 10:2025, hallazgos y plazos de remediación |
 
 ## Requisitos
 
@@ -31,6 +33,10 @@ ese contenedor. **Flyway aplica las migraciones al arrancar.**
 Swagger UI: <http://localhost:8080/swagger-ui.html>
 
 ## Pruebas
+
+Cada pull request hacia `develop` o `main` ejecuta `./mvnw verify` en GitHub Actions; al
+integrar en `main`, además se publica la imagen y se despliega en Render. Ver
+[docs/ci-cd.md](docs/ci-cd.md).
 
 ```bash
 ./mvnw test      # unitarias y de arquitectura. No necesitan Docker

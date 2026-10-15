@@ -7,11 +7,12 @@ todo lo que hay aquí están en [docs/adr/](../adr/); este directorio contiene l
 
 | Archivo | Vista | Entregable |
 |---|---|---|
-| [c4-01-contexto.puml](c4-01-contexto.puml) | C4 nivel 1 — contexto del sistema | Sprint 1 |
-| [c4-02-contenedores.puml](c4-02-contenedores.puml) | C4 nivel 2 — contenedores | Sprint 1 |
+| [c4-01-contexto.puml](c4-01-contexto.puml) | C4 nivel 1 — contexto del sistema | Sprint 1, revisado en Sprint 2 |
+| [c4-02-contenedores.puml](c4-02-contenedores.puml) | C4 nivel 2 — contenedores | Sprint 1, revisado en Sprint 2 |
 | [c4-03-componentes-api.puml](c4-03-componentes-api.puml) | C4 nivel 3 — componentes de la API | Sprint 1 |
 | [uml-paquetes.puml](uml-paquetes.puml) | Paquetes y componentes **con interfaces** | Sprint 1 (literal) |
-| [uml-despliegue.puml](uml-despliegue.puml) | Despliegue | Sprint 1, se refina en Sprint 2 |
+| [uml-despliegue.puml](uml-despliegue.puml) | Despliegue | Sprint 1, refinado en Sprint 2 |
+| [../ci-cd.md](../ci-cd.md) | Pipeline CI/CD con GitHub Actions | Sprint 2 |
 | [proceso-principal.md](proceso-principal.md) | Máquinas de estado y reglas de negocio | Sprint 1 |
 | [requisitos-no-funcionales.md](requisitos-no-funcionales.md) | Atributos de calidad con objetivos medibles | Sprint 1 |
 
@@ -26,7 +27,7 @@ módulo**, no como paquetes horizontales del sistema completo (ver
 | Presentación | No aplica | El perfil avanzado no contempla frontend. Swagger UI cumple la función de superficie de interacción |
 | Aplicación | `<modulo>.application` | Casos de uso, orquestación, límites transaccionales |
 | Dominio | `<modulo>.domain` | Entidades, objetos de valor, reglas, políticas ABAC, puertos. Sin Spring ni JPA |
-| Infraestructura | `<modulo>.infrastructure` | Adaptadores JPA, cliente de GitHub, almacenamiento de archivos |
+| Infraestructura | `<modulo>.infrastructure` | Adaptadores JPA y JDBC hacia PostgreSQL |
 | Integración | `<modulo>.api` + `shared` | Contrato OpenAPI versionado, **contrato entre módulos** ([ADR-006](../adr/ADR-006-contratos-entre-modulos-en-api.md)), validación, errores uniformes, `traceId` |
 
 El paquete `config` no aparece en esta tabla porque no es una capa: cablea el arranque
@@ -40,13 +41,13 @@ Correspondencia con la tabla de §4.1 de los lineamientos:
 | Componente de §4.1 | En DevNet |
 |---|---|
 | Cliente web | No aplica (frontend N/A en el perfil avanzado) |
-| Gestión de identidad y acceso | Módulo `identity`, con GitHub como IdP federado |
+| Gestión de identidad y acceso | Módulo `identity`: registro e inicio de sesión locales, JWT RS256 y refresco rotatorio. GitHub como IdP federado: *previsto* (ADR-004) |
 | API Gateway | No aplica. Con un solo contenedor, un gateway añadiría un salto sin aportar enrutamiento ni balanceo real |
 | Backend | Cuatro módulos de negocio —`identity`, `profile`, `project`, `discussion`— más el kernel `shared` y el cableado de arranque en `config` |
 | Base de datos transaccional | PostgreSQL 16 en Supabase |
-| Repositorio de recursos | Supabase Storage, tras la interfaz `AlmacenArchivos` |
-| Observabilidad | Actuator + Micrometer → Prometheus/Grafana Cloud; logs JSON con `traceId` |
-| Plataforma DevOps | GitHub Actions; backlog y métricas en Azure DevOps |
+| Repositorio de recursos | *Previsto*: Supabase Storage. Hoy el avatar es una URL externa y no se almacenan binarios |
+| Observabilidad | Actuator (`/actuator/health`, usado por Render y el `HEALTHCHECK` del Dockerfile); `traceId` en el MDC de los logs, en la cabecera `X-Trace-Id` y en cada error (ADR-005). Prometheus/Grafana: *previsto*, sprint 3 |
+| Plataforma DevOps | GitHub Actions: pruebas en cada PR, imagen en ghcr.io y despliegue en Render desde `main` ([ci-cd.md](../ci-cd.md)); backlog y métricas en Azure DevOps |
 
 La no adopción de API Gateway se documenta aquí a propósito: §4.1 lo condiciona a "cuando
 aplique", y dejar constancia de la evaluación evita que se lea como omisión.
@@ -74,6 +75,20 @@ cableado `config`. Quedaron fuera `interaction`, `messaging`, `moderation` y `an
 Esas capacidades **sí están en el modelo de datos**: sus tablas forman parte de las 29 de
 [`docs/bd/02-modelo-logico.md`](../bd/02-modelo-logico.md) y cuentan como entregable de
 modelado. Lo que no existe es el código, y por eso no se dibujan.
+
+## Lo desplegado y lo previsto
+
+Los diagramas de contexto, contenedores y despliegue distinguen dos cosas:
+
+- **Trazo continuo:** existe y está en uso en producción.
+- **Borde discontinuo, texto gris y etiqueta «previsto»:** está decidido —por un ADR o
+  por el cronograma de §3.7— pero no implementado.
+
+Hoy son previstos: GitHub como proveedor de identidad y fuente de metadatos de
+repositorios, Supabase Storage, Prometheus/Grafana, el entorno de integración y los roles
+de base de datos de [`db-roles.sql`](../bd/db-roles.sql). Se dibujan en lugar de borrarse
+porque son el rumbo acordado; se marcan porque §4.1 exige que el diagrama coincida con lo
+desplegado. Cuando uno se implemente, pierde la etiqueta en el mismo sprint.
 
 ## Regla de mantenimiento
 

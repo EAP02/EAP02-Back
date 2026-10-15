@@ -1,0 +1,148 @@
+# =============================================================================
+#  DevNet - Integracion y despliegue continuos
+#
+#  Lineamientos §3.7 (sprint 2, Arquitectura): "CI/CD inicial con GitHub Actions".
+#  Lineamientos §7.1 y §7.2: integrar por pull request con comprobaciones
+#  automaticas obligatorias, y volver a ejecutar el pipeline sobre la rama
+#  principal despues de integrar.
+#
+#  Flujo de ramas (README):
+#    feature/*  --PR-->  develop  --PR-->  main  (produccion, Render)
+#
+#  Que hace cada job:
+#    verificar   En TODO pull request y push a develop/main. Compila y ejecuta
+#                ./mvnw verify: pruebas unitarias, reglas de arquitectura
+#                (ArchUnit) y pruebas de integracion contra PostgreSQL real
+#                (Testcontainers). Si falla, el PR no deberia integrarse.
+#    imagen      Solo en push a main, y solo si verificar paso. Construye la
+#                imagen Docker y la publica en ghcr.io etiquetada con el commit:
+#                artefacto versionado e inmutable (§7.2, Empaquetado).
+#    desplegar   Solo en push a main, despues de imagen. Dispara el deploy hook
+#                de Render: produccion solo recibe codigo que paso el pipeline.
+#
+#  Lo que NO hace todavia, a proposito (es del sprint 3 o de otro curso):
+#  analisis con SonarCloud y umbral de cobertura (Calidad de Software),
+#  metricas con Prometheus/Grafana y orquestacion de contenedores.
+# =============================================================================
+
+name: CI/CD
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  # Permite relanzarlo a mano desde la pestana Actions.
+  workflow_dispatch:
+
+# Un push nuevo a la misma rama cancela la ejecucion anterior: no tiene sentido
+# terminar de probar un commit que ya fue reemplazado. Nunca se cancela en main,
+# para no cortar un despliegue a medias.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+# Minimo privilegio (§3.4): por defecto el token solo lee. El job que publica la
+# imagen pide explicitamente el permiso de escritura que necesita.
+permissions:
+  contents: read
+
+jobs:
+
+  verificar:
+    name: Compilar y probar
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Obtener el codigo
+        uses: actions/checkout@v4
+
+      # El mismo JDK que la imagen de produccion (Dockerfile) y que el pom.xml.
+      - name: Preparar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      # verify y no test: test solo corre Surefire (*Test); verify corre ademas
+      # Failsafe (*IT), las pruebas de integracion con base real que exige §3.5.
+      # El runner de GitHub trae Docker, que es lo que Testcontainers necesita.
+      - name: Compilar y ejecutar pruebas
+        run: ./mvnw -B verify
+
+      # Si algo falla, los informes quedan descargables desde la ejecucion: sin
+      # ellos, depurar un fallo que solo ocurre en CI es adivinar.
+      - name: Publicar informes de pruebas
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: informes-de-pruebas
+          path: |
+            target/surefire-reports/
+            target/failsafe-reports/
+          retention-days: 7
+
+  imagen:
+    name: Publicar imagen Docker
+    needs: verificar
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Obtener el codigo
+        uses: actions/checkout@v4
+
+      - name: Iniciar sesion en GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ghcr exige el nombre del repositorio en minusculas.
+      - name: Calcular el nombre de la imagen
+        id: nombre
+        run: echo "imagen=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      # Dos etiquetas: el commit, que es inmutable y permite saber exactamente que
+      # codigo corre (§7.2, "evidencia de la version"), y latest, por comodidad.
+      - name: Construir y publicar
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.nombre.outputs.imagen }}:${{ github.sha }}
+            ${{ steps.nombre.outputs.imagen }}:latest
+
+  desplegar:
+    name: Desplegar en Render
+    needs: imagen
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # El entorno 'produccion' de GitHub guarda el secreto del hook y deja
+    # constancia de cada despliegue en la pestana Environments.
+    environment:
+      name: produccion
+      url: https://eap02-back.onrender.com/swagger-ui.html
+
+    steps:
+      # El hook es una URL secreta: quien la tenga puede desplegar. Vive en GitHub
+      # Secrets y nunca en el repositorio (§7.3).
+      - name: Disparar el deploy hook
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK" ]; then
+            echo "::error::Falta el secreto RENDER_DEPLOY_HOOK en el entorno 'produccion'. Ver docs/ci-cd.md."
+            exit 1
+          fi
+          curl --fail --silent --show-error --max-time 30 -X POST "$RENDER_DEPLOY_HOOK" > /dev/null
+          echo "Despliegue solicitado a Render para el commit ${GITHUB_SHA::7}."
