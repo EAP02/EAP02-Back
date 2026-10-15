@@ -578,7 +578,7 @@ y con índice GIN desde V1, sirvió tal cual para HU-09, y quedó medida en
 | Sprint | Entregable de Bases de Datos | Estado |
 |---|---|---|
 | 1 | Entidades y relaciones, consultas clave, modelo lógico, modelo físico inicial | **Completo** |
-| 2 | MER refinado, modelo físico completo con claves y restricciones, script de estructuras, consultas de los dos primeros sprints, estimación de volumen, roles y esquema de seguridad | Refinamiento y trazabilidad arriba; consultas del sprint 2 en `05-consultas-no-triviales.sql`; mediciones con datos representativos en `04-indices.md`; roles en `db-roles.sql` **pendientes de aplicar** |
+| 2 | MER refinado, modelo físico completo con claves y restricciones, script de estructuras, consultas de los dos primeros sprints, estimación de volumen, roles y esquema de seguridad | Refinamiento y trazabilidad arriba; consultas del sprint 2 en `05-consultas-no-triviales.sql`; mediciones con datos representativos en `04-indices.md`; roles de `db-roles.sql` **aplicados en producción** (14/10/2026) |
 | 3 | MER y script refinados, triggers y procedimientos coherentes con las HU, actualización del análisis de volumen | `V3`: triggers de auditoría y de contadores, `sp_consolidar_metricas_diarias` |
 
 Los triggers y el procedimiento almacenado se dejan deliberadamente para el sprint 3
