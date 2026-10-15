@@ -139,7 +139,14 @@ WITH RECURSIVE hilo AS (
         padre.ruta_orden || (to_char(h.creado_en, 'YYYYMMDDHH24MISSUS') || ':' || h.id::text)
     FROM comentario h
     JOIN hilo padre ON h.comentario_padre_id = padre.id
-    WHERE h.estado <> 'ELIMINADO'
+    -- Redundante para el resultado (una respuesta siempre es de la misma
+    -- publicacion que su padre), decisivo para el plan: sin esta condicion el
+    -- paso recursivo no puede usar ix_comentario_publicacion_padre, cuya primera
+    -- columna es publicacion_id, y recorre la tabla comentario entera en cada
+    -- nivel. Medido con 250 000 comentarios: 118 ms -> 18 ms en el peor caso
+    -- (docs/bd/04-indices.md, registro de mediciones).
+    WHERE h.publicacion_id = :publicacion
+      AND h.estado <> 'ELIMINADO'
 )
 SELECT
     hilo.id,
@@ -611,6 +618,134 @@ WHERE a.tabla       = :tabla
      OR (a.datos_antes ->> campo.key) IS DISTINCT FROM (a.datos_despues ->> campo.key)
       )
 ORDER BY a.creado_en DESC, campo.key;
+
+
+-- ============================================================================
+--  CONSULTAS IMPLEMENTADAS EN EL SPRINT 2
+--
+--  Las de arriba son de diseno: responden a las preguntas de
+--  01-consultas-clave.md antes de que existiera el codigo. Estas son las que la
+--  aplicacion EJECUTA, copiadas de sus repositorios, para que la documentacion
+--  de la base corresponda a lo que corre en produccion.
+--
+--  Mediciones de todas, con 40 000 publicaciones y 250 000 comentarios, en
+--  docs/bd/04-indices.md.
+-- ============================================================================
+
+
+-- ----------------------------------------------------------------------------
+-- S2-1 | HU-09: busqueda de proyectos por texto y tecnologia
+--
+-- Codigo: RepositorioProyectosJpa.buscar
+--
+-- Lo no trivial: el SQL se ARMA segun los filtros presentes, en lugar de usar
+-- una consulta fija con "(:texto IS NULL OR ...)". Con la forma fija,
+-- PostgreSQL acaba usando un plan generico que debe servir para todos los
+-- casos y deja de aprovechar el indice GIN. Cada condicion solo aparece si el
+-- usuario la pidio; los valores van siempre como parametros, nunca concatenados.
+--
+-- Abajo, la forma completa (texto + tecnologia + cursor). Sin texto se omite la
+-- linea de busqueda_tsv; sin tecnologia, el EXISTS; en la primera pagina, el
+-- cursor.
+--
+-- websearch_to_tsquery acepta lo que una persona escribe en un buscador
+-- (comillas, -excluir, "or") sin fallar por sintaxis.
+--
+-- Indices: ix_publicacion_feed con terminos frecuentes, ix_publicacion_busqueda
+-- (GIN) con terminos raros; ix_publicacion_tecnologia_inverso para el EXISTS.
+-- El planificador elige segun la selectividad: ver 04-indices.md.
+-- ----------------------------------------------------------------------------
+
+SELECT p.id
+FROM publicacion p
+WHERE p.tipo = 'PROYECTO'
+  AND p.estado = 'PUBLICADO'
+  AND p.busqueda_tsv @@ websearch_to_tsquery('spanish', :texto)
+  AND EXISTS (SELECT 1 FROM publicacion_tecnologia pt
+              WHERE pt.publicacion_id = p.id AND pt.tecnologia_id = :tecnologia)
+  AND (p.publicado_en, p.id) < (:cursor_fecha::timestamptz, :cursor_id::uuid)
+ORDER BY p.publicado_en DESC, p.id DESC
+LIMIT :limite_mas_uno;
+
+
+-- ----------------------------------------------------------------------------
+-- S2-2 | HU-12: discusiones filtradas por etiqueta, paginadas por cursor
+--
+-- Codigo: RepositorioDiscusionesJdbc.listar
+--
+-- Lo no trivial: la misma paginacion por keyset que P01 aplicada al subtipo
+-- DISCUSION, y el EXISTS sobre la etiqueta. Se pide una fila de mas para saber
+-- si hay pagina siguiente sin un COUNT sobre toda la coleccion. El criterio de
+-- aceptacion "no repite elementos entre paginas" lo garantiza la comparacion de
+-- tuplas (publicado_en, id), que con OFFSET no se cumpliria.
+--
+-- Indices: ix_publicacion_feed, ix_publicacion_tecnologia_inverso
+-- ----------------------------------------------------------------------------
+
+SELECT p.id, p.autor_id, p.titulo, p.contenido, p.publicado_en,
+       d.categoria, d.resuelta
+FROM publicacion p
+JOIN publicacion_discusion d ON d.publicacion_id = p.id
+WHERE p.tipo = 'DISCUSION'
+  AND p.estado = 'PUBLICADO'
+  AND EXISTS (SELECT 1 FROM publicacion_tecnologia pt
+              WHERE pt.publicacion_id = p.id AND pt.tecnologia_id = :tecnologia)
+  AND (p.publicado_en, p.id) < (:cursor_fecha::timestamptz, :cursor_id::uuid)
+ORDER BY p.publicado_en DESC, p.id DESC
+LIMIT :limite_mas_uno;
+
+-- Complemento: las etiquetas de TODA la pagina en una sola consulta, en vez de
+-- una por discusion (evita N+1 consultas con paginas de hasta 50).
+SELECT publicacion_id, tecnologia_id
+FROM publicacion_tecnologia
+WHERE publicacion_id IN (:ids_de_la_pagina)
+ORDER BY tecnologia_id;
+
+
+-- ----------------------------------------------------------------------------
+-- S2-3 | HU-11: participantes del hilo de una discusion
+--
+-- Codigo: RepositorioDiscusionesJdbc.participantes
+--
+-- Lo no trivial: agregacion por autor con MIN para ordenar por la primera
+-- intervencion. Cada usuario aparece una sola vez aunque haya comentado muchas,
+-- y solo cuentan los comentarios visibles. Una sola consulta, sea cual sea el
+-- tamano del hilo.
+--
+-- Indice: ix_comentario_publicacion_padre (su primera columna es publicacion_id)
+-- ----------------------------------------------------------------------------
+
+SELECT c.autor_id,
+       count(*)         AS comentarios,
+       min(c.creado_en) AS primera_intervencion
+FROM comentario c
+WHERE c.publicacion_id = :discusion
+  AND c.estado = 'PUBLICADO'
+GROUP BY c.autor_id
+ORDER BY primera_intervencion, c.autor_id;
+
+
+-- ----------------------------------------------------------------------------
+-- S2-4 | HU-08: transicion de estado con su historial, en una transaccion
+--
+-- Codigo: RepositorioProyectosJpa.transicionarEstado (usado por ocultar y
+-- por eliminar/archivar)
+--
+-- Lo no trivial: no es una consulta sino dos escrituras atomicas. La regla R5
+-- exige que toda transicion deje rastro en la MISMA transaccion: si el
+-- historial no se puede escribir, el cambio de estado no ocurre.
+-- ck_historial_estados_distintos impide registrar una transicion a si mismo.
+-- ----------------------------------------------------------------------------
+
+-- Dentro de una unica transaccion:
+SELECT estado FROM publicacion WHERE id = :publicacion;
+
+UPDATE publicacion SET estado = :estado_nuevo, actualizado_en = now()
+WHERE id = :publicacion;
+
+INSERT INTO historial_estado_publicacion
+    (publicacion_id, estado_anterior, estado_nuevo, actor_id, motivo)
+VALUES (:publicacion, :estado_anterior, :estado_nuevo, :actor, :motivo);
 
 
 -- ============================================================================

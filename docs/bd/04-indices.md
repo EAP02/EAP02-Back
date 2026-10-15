@@ -185,13 +185,101 @@ corrige un plan de ejecución malo, solo lo esconde.
 
 ## Registro de mediciones
 
-Se completa en el sprint 2, con datos representativos y no con los de demostración.
+Medido el 14 de octubre de 2026 (sprint 2), con datos representativos y no con los de
+demostración.
 
-| Consulta | Índice esperado | Filas de prueba | Plan observado | Tiempo p95 | Presupuesto | Veredicto |
-|---|---|---|---|---|---|---|
-| P01 feed | `ix_publicacion_feed` | | | | 600 ms | |
-| P02 hilo | `ix_comentario_publicacion_padre` | | | | 500 ms | |
-| P04 búsqueda | `ix_publicacion_busqueda` | | | | 900 ms | |
-| P05 bandeja | `ix_mensaje_conversacion` | | | | 400 ms | |
-| P09 cola | `ix_reporte_pendiente` | | | | 500 ms | |
-| P13 crecimiento | lectura de `metricas_diarias` | | | | 2 s | |
+### Cómo se midió
+
+| | |
+|---|---|
+| Motor | PostgreSQL 16.15 local, imagen `postgres:16-alpine` (la misma de `docker-compose.yml`), con las migraciones V1 a V5 |
+| Datos | [`datos-representativos.sql`](datos-representativos.sql): los volúmenes de la **proyección a un año** de [01-consultas-clave.md](01-consultas-clave.md), con distribuciones sesgadas (pocos autores publican mucho, pocas publicaciones concentran los comentarios, pocas conversaciones concentran los mensajes) |
+| Volumen cargado | 5 000 usuarios · 40 000 publicaciones · 110 094 etiquetas · 250 000 comentarios · 400 000 mensajes · 54 812 seguimientos · 3 000 reportes · 365 días de métricas |
+| Método | [`medicion-planes.sql`](medicion-planes.sql): cada consulta 30 veces con `EXPLAIN (ANALYZE, BUFFERS)`, cada vez con un parámetro distinto tomado de los datos; p50, p95 y máximo del tiempo de ejecución, y de cada plan los índices usados y las tablas recorridas en secuencial |
+| Límite | Mide el tiempo **en la base**, con caché caliente. No incluye red, pool de conexiones ni serialización. Supabase tiene otra máquina y otra red: los valores absolutos no se trasladan, la forma de los planes sí |
+
+Para repetirlo:
+
+```bash
+docker compose up -d   # o podman
+# aplicar V1..V5 (las aplica Flyway al arrancar la API una vez) y después:
+docker exec -i devnet-db psql -U postgres -d devnet < docs/bd/datos-representativos.sql
+docker exec -i devnet-db psql -U postgres -d devnet < docs/bd/medicion-planes.sql
+```
+
+### Consultas de diseño
+
+| Consulta | Índice esperado | Plan observado | p95 | Presupuesto | Veredicto |
+|---|---|---|---|---|---|
+| P01 feed | `ix_publicacion_feed` | `ix_publicacion_feed` + `ix_publicacion_tecnologia_inverso` + claves primarias. Secuencial solo sobre `tecnologia` (20 filas) | 12,53 ms | 600 ms | ✅ |
+| P02 hilo | `ix_comentario_publicacion_padre` | `ix_comentario_publicacion_padre` en ambos términos del CTE recursivo, **tras corregir la consulta** (ver abajo) | 0,31 ms | 500 ms | ✅ |
+| P04 búsqueda con relevancia | `ix_publicacion_busqueda` | `ix_publicacion_busqueda` (GIN). Secuencial sobre `perfil` para la puntuación por reputación | 6,80 ms | 900 ms | ✅ |
+| P05 bandeja | `ix_mensaje_conversacion` | `ix_mensaje_conversacion` + `ix_participante_usuario` | 0,52 ms | 400 ms | ✅ |
+| P09 cola | `ix_reporte_pendiente` | **No lo usa:** secuencial sobre `reporte_moderacion` (ver abajo) | 1,31 ms | 500 ms | ✅ con observación |
+| P13 crecimiento | lectura de `metricas_diarias` | Secuencial sobre `metricas_diarias` (365 filas): es lo esperado | 0,23 ms | 2 s | ✅ |
+
+### Consultas implementadas en el sprint 2
+
+Copiadas literalmente de los repositorios de la aplicación.
+
+| Consulta | Dónde | Plan observado | p95 |
+|---|---|---|---|
+| HU-07 proyectos de un autor | `PublicacionJpaRepository.deAutorPaginado` | `ix_publicacion_autor_estado` | 0,06 ms |
+| HU-09 búsqueda por texto | `RepositorioProyectosJpa.buscar` | `ix_publicacion_feed` con términos frecuentes; `ix_publicacion_busqueda` con términos raros (ver abajo) | 0,13 ms |
+| HU-09 filtro por tecnología | `RepositorioProyectosJpa.buscar` | `ix_publicacion_feed` + `ix_publicacion_tecnologia_inverso` | 0,49 ms |
+| HU-09 texto + tecnología | `RepositorioProyectosJpa.buscar` | `ix_publicacion_feed` + `ix_publicacion_tecnologia_inverso` | 1,33 ms |
+| HU-11 participantes del hilo | `RepositorioDiscusionesJdbc.participantes` | `ix_comentario_publicacion_padre` | 0,10 ms |
+| HU-12 discusiones por etiqueta | `RepositorioDiscusionesJdbc.listar` | `ix_publicacion_feed` + `ix_publicacion_tecnologia_inverso`; hash sobre `publicacion_discusion` | 0,89 ms |
+
+Ninguna recorre en secuencial una tabla grande. Todas quedan dos o más órdenes de magnitud
+por debajo de su presupuesto.
+
+### Hallazgos
+
+**P02: el paso recursivo recorría la tabla entera.** La versión original unía
+`comentario h JOIN hilo ON h.comentario_padre_id = padre.id` sin filtrar por publicación.
+`ix_comentario_publicacion_padre` empieza por `publicacion_id`, así que ese paso no podía
+usarlo y hacía un `Seq Scan` de los 250 000 comentarios **en cada nivel del árbol**: su costo
+crecía con el tamaño de toda la tabla, no con el del hilo. Se añadió
+`h.publicacion_id = :publicacion` al paso recursivo, una condición que no cambia el
+resultado porque una respuesta siempre pertenece a la publicación de su padre.
+
+| P02 | Plan del paso recursivo | Peor caso (hilo de 17 520 comentarios) | p95 (30 hilos) |
+|---|---|---|---|
+| Antes | `Seq Scan on comentario` (250 000 filas × 2 niveles) | 118 ms | 62,6 ms |
+| Después | `Bitmap Index Scan on ix_comentario_publicacion_padre` | 18 ms | 0,31 ms |
+
+Se resolvió **cambiando la consulta y no creando un índice**: el índice existente ya servía,
+solo había que darle la condición que necesita. Sin costo de escritura nuevo.
+
+**HU-09: el planificador elige el índice según la selectividad del término.** Con un
+término frecuente (cada palabra del vocabulario de prueba aparece en un 8 % de los
+proyectos) recorre `ix_publicacion_feed`, que ya está ordenado, y se detiene al reunir 21
+resultados. Con un término raro o inexistente usa el GIN `ix_publicacion_busqueda`. Los dos
+índices se justifican: cada uno gana en un extremo.
+
+**P09: `ix_reporte_pendiente` no se usa.** La consulta ordena por
+`es_apelacion DESC, creado_en`, y el índice solo cubre `creado_en`; con 3 000 reportes y 300
+pendientes, el planificador prefiere leer la tabla y ordenar (1,3 ms). Se **mantiene**: es
+parcial, y por eso pequeño y barato de escribir, y servirá cuando la tabla crezca. Si en el
+sprint 3 la cola de moderación se implementa y la tabla supera unas decenas de miles de
+filas, se evaluará cambiarlo por `(es_apelacion DESC, creado_en) WHERE estado IN (...)`.
+
+### Tamaño en disco
+
+| Tabla | Filas | Total | De ello, índices |
+|---|---|---|---|
+| `mensaje` | 400 000 | 81 MB | 37 MB |
+| `comentario` | 250 000 | 62 MB | 26 MB |
+| `publicacion` | 40 000 | 32 MB | 13 MB |
+| `publicacion_tecnologia` | 110 094 | 16 MB | 11 MB |
+| `seguimiento` | 54 812 | 10 MB | 7 MB |
+| **Base completa** | | **240 MB** | |
+
+Los datos de prueba **no** poblaron `reaccion_publicacion`, `evento_reputacion` ni
+`auditoria`, porque ninguna funcionalidad las escribe todavía, y son justo las tres de mayor
+crecimiento proyectado (600 000, 900 000 y 500 000 filas al año). Con ellas, la base
+proyectada a un año se acercaría o superaría los **500 MB del plan gratuito de Supabase**.
+Es un dato para la actualización del análisis de volumen del sprint 3 (§3.7): la retención de
+`auditoria` y el particionamiento de `evento_reputacion`, que hoy figuran como «evaluados y
+no necesarios», pasan a ser candidatos reales en cuanto esas tablas empiecen a llenarse.

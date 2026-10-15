@@ -24,6 +24,11 @@ sección.
 >   Java que llevar cinco años.
 >
 > El recuento de 29 tablas sigue siendo el vigente: V3 sumó una y V4 la quitó.
+>
+> **Refinamiento del sprint 2 (2026-10-14).** No hubo migraciones nuevas: las HU-08, 09, 11
+> y 12 se construyeron sobre tablas que ya existían, lo que confirma el diseño. Lo que cambió
+> es cómo se **usa** el modelo, y eso está en la sección
+> [Refinamiento del sprint 2](#refinamiento-del-sprint-2) al final del documento.
 
 ---
 
@@ -284,8 +289,12 @@ dentro del presupuesto de 200 ms de la lectura por id.
 
 La disyunción del discriminador (`tipo = 'PROYECTO'` ⟺ existe fila en
 `publicacion_proyecto`) no la puede imponer una restricción declarativa de PostgreSQL sin
-un trigger. Se mantiene como invariante de la capa de aplicación, que es la única que crea
-publicaciones, y se verifica con una consulta de integridad ejecutada en el pipeline.
+un trigger. Se mantiene como invariante de la capa de aplicación, y se verifica con la
+consulta de integridad I2 de [05-consultas-no-triviales.sql](05-consultas-no-triviales.sql).
+Desde el sprint 2 hay **dos escritores**: el módulo `project` (JPA) y el módulo
+`discussion` (JDBC). Cada uno escribe supertipo y subtipo en la misma transacción, pero ya
+no hay un único punto en el código que lo garantice; ver
+[Refinamiento del sprint 2](#refinamiento-del-sprint-2).
 
 ### Otras notas
 
@@ -501,12 +510,75 @@ mismo camino.
 
 ---
 
+## Refinamiento del sprint 2
+
+### Qué historia usa cada tabla
+
+§5.1 pide mantener trazabilidad entre los modelos y las historias de usuario. Las 29
+tablas, según su uso real en el código a cierre del sprint 2:
+
+| Tabla | Escribe | Lee | Estado |
+|---|---|---|---|
+| `usuario`, `usuario_rol`, `rol`, `permiso`, `rol_permiso` | HU-01, HU-02, HU-03 | HU-06 y todas las operaciones protegidas | En uso |
+| `token_refresco` | Refresco y cierre de sesión (ADR-004) | Ídem | En uso |
+| `perfil`, `perfil_tecnologia` | Registro (evento), edición de perfil | Perfil público | En uso |
+| `tecnologia` | — (datos de referencia de V1) | HU-07, HU-09, HU-11, HU-12 y el catálogo `GET /tecnologias` | En uso, solo lectura |
+| `publicacion` | HU-07, HU-08 (editar, archivar), HU-06 (ocultar), HU-11 | HU-07, HU-08, HU-09, HU-11, HU-12 | En uso, **compartida por dos módulos** |
+| `publicacion_proyecto`, `repositorio` | HU-07, HU-08 | HU-07, HU-08, HU-09 | En uso |
+| `publicacion_discusion` | HU-11 | HU-11, HU-12 | En uso desde el sprint 2 |
+| `publicacion_tecnologia` | HU-07, HU-08, HU-11 | HU-09, HU-11, HU-12 | En uso, **compartida por dos módulos** |
+| `historial_estado_publicacion` | HU-06, HU-08 (archivar) | — (consulta P10/P11 sin endpoint) | En uso |
+| `comentario` | — (sin HU de comentar todavía) | HU-11 (participantes del hilo) | **Leída, no escrita** |
+| `auditoria` | HU-06, HU-08, eventos de sesión (V2, V5) | — (sin endpoint de consulta) | En uso |
+| `identidad_externa` | — | — | Modelada (GitHub OIDC previsto, ADR-004) |
+| `seguimiento`, `colaboracion`, `reaccion_publicacion`, `reaccion_comentario`, `evento_reputacion` | — | — | Modeladas, sin implementación |
+| `conversacion`, `participante_conversacion`, `mensaje` | — | — | Modeladas, sin implementación |
+| `reporte_moderacion`, `suspension`, `metricas_diarias` | — | — | Modeladas, sin implementación |
+
+### Lo que el uso enseñó
+
+**1. `publicacion` tiene dos módulos escritores.** `project` la escribe con JPA y
+`discussion` con JDBC, porque la entidad JPA pertenece a `project` y las fronteras entre
+módulos impiden compartirla (ADR-006). Es correcto según la arquitectura, pero el
+invariante del discriminador ya no lo protege un solo punto de código. Mitigación vigente:
+cada escritor inserta supertipo y subtipo en una sola transacción, y la consulta de
+integridad I2 debe devolver cero filas. Candidata para el sprint 3: un *trigger* de
+integridad que lo garantice en la propia base (§5.4: *«apropiados para integridad»*).
+
+**2. Nada impide que una respuesta cuelgue de un comentario de otra publicación.**
+`comentario.comentario_padre_id` referencia a `comentario(id)`, pero ninguna restricción
+exige que el padre sea de la **misma** `publicacion_id`. Salió a la luz al medir P02: la
+consulta del hilo necesitaba filtrar el paso recursivo por publicación, y ese filtro solo es
+inocuo si el invariante se cumple. Hoy no hay ningún escritor de comentarios, así que no se
+ha violado: en los datos de prueba, cero filas lo incumplen. Se resuelve con una clave
+foránea compuesta:
+
+```sql
+-- Propuesta para la migración que acompañe a la HU de comentar
+ALTER TABLE comentario ADD CONSTRAINT ux_comentario_id_publicacion UNIQUE (id, publicacion_id);
+ALTER TABLE comentario ADD CONSTRAINT fk_comentario_padre_misma_publicacion
+    FOREIGN KEY (comentario_padre_id, publicacion_id)
+    REFERENCES comentario (id, publicacion_id) ON DELETE CASCADE;
+```
+
+Va con la HU que empiece a escribir comentarios, no antes: es entonces cuando hay datos que
+proteger y pruebas que lo demuestren.
+
+**3. Eliminar es archivar.** HU-08 confirmó en la práctica la decisión del modelo: el
+estado `ARCHIVADO` y el historial bastaron para «eliminar» un proyecto sin borrar filas, y
+las lecturas públicas no tuvieron que cambiar porque ya filtraban por `PUBLICADO`. El
+estado `EN_REVISION` sigue sin uso.
+
+**4. La búsqueda de texto completo funcionó sin tocar el esquema.** `busqueda_tsv`, generada
+y con índice GIN desde V1, sirvió tal cual para HU-09, y quedó medida en
+[04-indices.md](04-indices.md).
+
 ## Siguiente paso por sprint
 
 | Sprint | Entregable de Bases de Datos | Estado |
 |---|---|---|
 | 1 | Entidades y relaciones, consultas clave, modelo lógico, modelo físico inicial | **Completo** |
-| 2 | MER refinado, modelo físico completo con claves y restricciones, script de estructuras, consultas de los dos primeros sprints, estimación de volumen, roles y esquema de seguridad | `V2`: roles de base de datos, consultas de los módulos entregados |
+| 2 | MER refinado, modelo físico completo con claves y restricciones, script de estructuras, consultas de los dos primeros sprints, estimación de volumen, roles y esquema de seguridad | Refinamiento y trazabilidad arriba; consultas del sprint 2 en `05-consultas-no-triviales.sql`; mediciones con datos representativos en `04-indices.md`; roles en `db-roles.sql` **pendientes de aplicar** |
 | 3 | MER y script refinados, triggers y procedimientos coherentes con las HU, actualización del análisis de volumen | `V3`: triggers de auditoría y de contadores, `sp_consolidar_metricas_diarias` |
 
 Los triggers y el procedimiento almacenado se dejan deliberadamente para el sprint 3
