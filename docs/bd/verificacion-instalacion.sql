@@ -77,11 +77,11 @@ ORDER BY cantidad DESC;
 
 -- ----------------------------------------------------------------------------
 -- 6. Datos de referencia
---    ESPERADO:  roles 4 | permisos 21 | rol_permiso 41 | tecnologias 20
+--    ESPERADO:  roles 4 | permisos 22 | rol_permiso 43 | tecnologias 20
 -- ----------------------------------------------------------------------------
 SELECT 'rol'         AS tabla, count(*) AS filas, 4  AS esperado FROM rol
-UNION ALL SELECT 'permiso',     count(*), 21 FROM permiso
-UNION ALL SELECT 'rol_permiso', count(*), 41 FROM rol_permiso
+UNION ALL SELECT 'permiso',     count(*), 22 FROM permiso
+UNION ALL SELECT 'rol_permiso', count(*), 43 FROM rol_permiso
 UNION ALL SELECT 'tecnologia',  count(*), 20 FROM tecnologia;
 
 
