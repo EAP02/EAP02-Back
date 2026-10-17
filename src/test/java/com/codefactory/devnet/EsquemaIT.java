@@ -52,8 +52,8 @@ class EsquemaIT {
     @DisplayName("deja los datos de referencia sin los que el sistema no arranca")
     void carga_los_datos_de_referencia() {
         assertThat(contar("rol")).isEqualTo(4);
-        assertThat(contar("permiso")).isEqualTo(20);
-        assertThat(contar("rol_permiso")).isEqualTo(40);
+        assertThat(contar("permiso")).isEqualTo(22);
+        assertThat(contar("rol_permiso")).isEqualTo(43);
         assertThat(contar("tecnologia")).isEqualTo(20);
     }
 

@@ -103,6 +103,8 @@ public class SeguridadConfig {
                     .requestMatchers(HttpMethod.GET, "/api/v1/perfiles/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/tecnologias/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/discusiones/**").permitAll()
+                    // Comentarios de una publicacion (proyecto o discusion): lectura publica.
+                    .requestMatchers(HttpMethod.GET, "/api/v1/publicaciones/*/comentarios", "/api/v1/publicaciones/*/reacciones").permitAll()
                     // Metricas: nunca abiertas, ni siquiera en integracion.
                     .requestMatchers("/actuator/**").authenticated()
                     .anyRequest().authenticated())
