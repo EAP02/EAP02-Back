@@ -36,7 +36,17 @@ public enum CodigoErrorInteraccion implements CodigoError {
      */
     COMENTARIO_AJENO(
             403,
-            "Solo el autor del comentario o un administrador puede eliminarlo.");
+            "Solo el autor del comentario o un administrador puede eliminarlo."),
+
+    /** HU-14: el tipo de reaccion no es uno de los que acepta la base (ME_GUSTA, UTIL, INNOVADOR). */
+    REACCION_TIPO_INVALIDO(
+            400,
+            "El tipo de reaccion no es valido. Usa ME_GUSTA, UTIL o INNOVADOR."),
+
+    /** HU-14: la cuenta no puede reaccionar (no esta activa). */
+    REACCION_AUTOR_SIN_PERMISO_DE_ESCRITURA(
+            422,
+            "Tu cuenta no puede reaccionar en este momento.");
 
     private final int estado;
     private final String mensaje;
