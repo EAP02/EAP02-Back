@@ -10,7 +10,9 @@ vulnerabilidades con tiempos de remediación definidos»*) y a §6.3.
 - **Alcance:** la API desplegada en `main` (`https://eap02-back.onrender.com`), su base de
   datos y su pipeline. No hay frontend (§1.3).
 - **Fecha del análisis:** 14 de octubre de 2026, sobre el commit de `develop` posterior a
-  HU-12 y al pipeline de CI/CD.
+  HU-12 y al pipeline de CI/CD. **Actualizado el 17 de octubre de 2026** con HU-13
+  (comentarios), HU-14 (reacciones) y HU-15 (seguimiento): cambia A01, A05, A06 y A09, y se
+  añaden H-24 y H-25.
 - **Método:** revisión del código y la configuración, más comprobaciones contra producción
   marcadas como *verificado en producción*. **No es una prueba de penetración** ni un DAST:
   esos corresponden a §6.1 (*Pruebas*) y quedan como pendiente.
@@ -30,7 +32,9 @@ consolidan al final con severidad y plazo.
 | Denegación por defecto: toda ruta no listada como pública exige autenticación | `SeguridadConfig` (`anyRequest().authenticated()`) | `ControlAccesoPorRolIT` |
 | RBAC por permiso, no por nombre de rol, en cada endpoint que escribe | `@PreAuthorize("hasAuthority(...)")` en los controladores | `ControlAccesoPorRolIT`, `PublicarProyectoIT` |
 | ABAC por propiedad: solo el titular edita su perfil; solo el autor o un moderador modifica un proyecto | `PoliticaPerfil`, `PoliticaProyecto` (dominio) | `PoliticaPerfilTest`, `EditarProyectoTest`, `EditarProyectoIT`, `ArchivarProyectoIT` |
-| La identidad sale siempre del token, nunca de la ruta ni del cuerpo | `EditarPerfil`, `PublicarProyecto`, `CrearDiscusion` | `PublicarProyectoIT` (criterio 3), `CrearDiscusionIT` |
+| La identidad sale siempre del token, nunca de la ruta ni del cuerpo | `EditarPerfil`, `PublicarProyecto`, `CrearDiscusion`, `PublicarComentario`, `Reaccionar`, `SeguirUsuario` | `PublicarProyectoIT` (criterio 3), `CrearDiscusionIT`, `ComentarioIT`, `ReaccionIT`, `SeguimientoIT` |
+| Eliminar un comentario ajeno exige un permiso propio que solo tiene ADMIN; el moderador no | `PoliticaComentario`, permiso `comentario:eliminar-ajeno` (V6) | `ComentarioTest`, `ComentarioIT` |
+| Las capacidades sociales llegan solo a los roles que deben tenerlas: `usuario:seguir` a DESARROLLADOR y MODERADOR, no a VISITANTE ni ADMIN | V7, `@PreAuthorize` | `SeguimientoIT` |
 | Un recurso no visible responde 404 y no 403, para no confirmar su existencia | `PoliticaProyecto.rechazoPara` (ADR-005) | `EditarProyectoIT.un_proyecto_oculto_no_se_revela` |
 | Todo acceso denegado queda auditado, también los de las reglas de dominio | `ManejadorGlobalErrores.accesoDenegado`, `EditarProyecto`, `ArchivarProyecto` | `ControlAccesoPorRolIT.el_intento_denegado_se_audita`, `EditarProyectoIT.el_intento_se_audita` |
 | CORS restringido a orígenes configurados | `SeguridadConfig.configuracionCors`, `CORS_ORIGENES` | *Verificado en producción:* un origen no autorizado no recibe `Access-Control-Allow-Origin` |
@@ -120,7 +124,8 @@ consolidan al final con severidad y plazo.
 
 | Control | Dónde | Evidencia |
 |---|---|---|
-| Consultas parametrizadas en todo el acceso a datos: JPA, consultas nativas con `@Param` y `JdbcTemplate` con `?` | Adaptadores de `infrastructure` | §5.3: *«nunca concatenar entrada del usuario en SQL»* |
+| Consultas parametrizadas en todo el acceso a datos: JPA, consultas nativas con `@Param` y `JdbcTemplate` con `?` | Adaptadores de `infrastructure`, incluidos `RepositorioComentariosJdbc`, `RepositorioReaccionesJdbc` y `RepositorioSeguimientosJdbc` | §5.3: *«nunca concatenar entrada del usuario en SQL»* |
+| La unicidad se impone en la base y no solo en el código: una reacción por usuario y publicación, un seguimiento por pareja, sin seguirse a uno mismo | Claves primarias compuestas y `ck_seguimiento_no_reflexivo` en `V1__baseline.sql`; `ON CONFLICT` en los adaptadores | `ReaccionIT`, `SeguimientoIT` |
 | El SQL dinámico solo concatena **fragmentos constantes**; los valores van siempre como parámetros | `RepositorioProyectosJpa.buscar`, `RepositorioDiscusionesJdbc.listar` y `etiquetasDe` | Javadoc de cada método; `BuscarProyectosIT`, `ListarDiscusionesIT` |
 | La búsqueda de texto usa `websearch_to_tsquery`, que no falla ante sintaxis arbitraria del usuario | `RepositorioProyectosJpa.buscar` | `BuscarProyectosIT` |
 | Validación de forma en dos capas: Bean Validation en la API y reglas en el dominio | Controladores + `Proyecto`, `Discusion`, `Perfil`, `CriteriosBusqueda` | `ProyectoTest`, `DiscusionTest`, `CriteriosBusquedaTest` |
@@ -128,7 +133,8 @@ consolidan al final con severidad y plazo.
 
 **Hallazgos**
 
-- **H-11** · La API guarda y devuelve texto libre (títulos, descripciones, cuerpos) sin
+- **H-11** · La API guarda y devuelve texto libre (títulos, descripciones, cuerpos y,
+  desde HU-13, comentarios de hasta 5000 caracteres) sin
   sanearlo, como corresponde a una API JSON. **El cliente que lo pinte debe escapar la
   salida.** Hoy no hay frontend; el riesgo de XSS almacenado nace el día que lo haya. Se
   documenta para el equipo que lo construya.
@@ -145,6 +151,8 @@ consolidan al final con severidad y plazo.
 | Eliminar exige confirmación escribiendo el título, y archiva en lugar de borrar | `Proyecto.archivar` (HU-08.3) |
 | Límites de abuso en lecturas: páginas de 50 como máximo, término de búsqueda de 100 caracteres, paginación por cursor | `BuscarProyectos`, `ListarDiscusiones`, `CriteriosBusqueda` |
 | Bloqueo de cuenta tras 5 intentos fallidos durante 15 minutos | `Usuario`, `application.yml` |
+| Límite de longitud del comentario (5000 caracteres), validado en la API y en el dominio | `PeticionComentar`, `Comentario` |
+| Reaccionar y seguir son idempotentes: repetirlos no duplica filas ni mueve el contador | `RepositorioReaccionesJdbc`, `RepositorioSeguimientosJdbc` |
 
 **Hallazgos**
 
@@ -152,6 +160,14 @@ consolidan al final con severidad y plazo.
   (pendiente con Bucket4j desde el sprint 1, ADR-004). Sin ella, el bloqueo por intentos se
   vuelve un arma: cualquiera puede **bloquear la cuenta de otro usuario** enviando cinco
   contraseñas incorrectas con su correo, y repetirlo cada 15 minutos.
+- **H-24** · Los listados de **comentarios, seguidos y seguidores** devuelven la lista
+  completa, sin paginar ni límite, a cualquiera (son de lectura pública). Una publicación muy
+  comentada o un usuario muy seguido produce respuestas cada vez mayores. Las colecciones de
+  publicaciones sí paginan por cursor (máximo 50).
+- **H-25** · Comentar, reaccionar y seguir se pueden repetir sin límite de frecuencia: un
+  usuario autenticado puede automatizar spam de comentarios o altas y bajas masivas de
+  reacciones y seguimientos. Es la misma carencia de H-12 aplicada a las acciones de mayor
+  frecuencia de la plataforma.
 - **H-13** · El registro responde `409 AUTH_CORREO_YA_REGISTRADO`, lo que permite comprobar
   si un correo tiene cuenta. El inicio de sesión sí responde igual para correo inexistente y
   contraseña incorrecta. Es un compromiso habitual de usabilidad, pero debería decidirse y
@@ -207,7 +223,7 @@ consolidan al final con severidad y plazo.
 
 | Control | Dónde | Evidencia |
 |---|---|---|
-| Tabla `auditoria` con los eventos de seguridad: acceso denegado, inicio de sesión, fallo, bloqueo, rotación y **reuso** de refresco, cierre de sesión, intervención de moderación | `EventoAuditoria`, `RegistroAuditoriaJdbc`; migraciones V2 y V5 | `ControlAccesoPorRolIT`, `RefrescoIT`, `EditarProyectoIT`, `ArchivarProyectoIT` |
+| Tabla `auditoria` con los eventos de seguridad: acceso denegado, inicio de sesión, fallo, bloqueo, rotación y **reuso** de refresco, cierre de sesión, intervención de moderación y eliminación de un comentario ajeno por un administrador | `EventoAuditoria`, `RegistroAuditoriaJdbc`; migraciones V2 y V5 | `ControlAccesoPorRolIT`, `RefrescoIT`, `EditarProyectoIT`, `ArchivarProyectoIT`, `ComentarioIT` |
 | La auditoría escribe en transacción propia: sobrevive al rollback de la petición | `RegistroAuditoriaJdbc` (`REQUIRES_NEW`) | — |
 | Correlación por `traceId`: en el MDC de los logs, en la cabecera `X-Trace-Id`, en cada error y en la fila de auditoría | `FiltroTraceId` (ADR-005) | *Verificado en producción:* `x-trace-id` en todas las respuestas |
 | Nunca se registran contraseñas, tokens ni la cookie | `ManejadorGlobalErrores`, `CookieRefresco`; §6.2 | — |
@@ -271,6 +287,8 @@ el mismo sprint del análisis; quedan tres abiertas.
 | ~~H-04~~ | A02 | Roles de BD de mínimo privilegio sin aplicar | ~~Alta~~ | ✅ **Resuelto** el 14/10/2026 |
 | H-15 | A07 | Sin control de credenciales comprometidas | Media | Requiere HU propia |
 | H-01 | A01 | Sin suspensión de cuentas ni gestión de roles por API | Media | Requiere HU propia |
+| H-24 | A06 | Listados de comentarios, seguidos y seguidores sin paginar | Media | Sprint 3, paginación por cursor como en las publicaciones |
+| H-25 | A06 | Sin límite de frecuencia al comentar, reaccionar y seguir | Media | Con H-12 (Bucket4j, sprint 3) |
 | H-19 | A09 | Sin alertas sobre eventos de seguridad | Media | Sprint 3 (Prometheus/Grafana, §3.7) |
 | H-21 | A09 | Logs sin `traceId` impreso ni formato estructurado | Media | Sprint 3, con la observabilidad |
 | H-08 | A03 | Acciones e imágenes base por etiqueta, no por digest | Media | Backlog técnico |
