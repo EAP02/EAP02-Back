@@ -77,8 +77,8 @@ Exportar a CSV desde psql cuando haya que adjuntarlo en Azure DevOps:
 |---|---|---|---|
 | `usuario` | Credenciales, estado de la cuenta, MFA y bloqueo por intentos | 1:1 con `perfil` | 5 000 |
 | `rol` | Catálogo de los cuatro roles, con la marca `exige_mfa` | N:M con `permiso` | 4 |
-| `permiso` | Catálogo de capacidades evaluadas por `@PreAuthorize` | N:M con `rol` | 20 |
-| `rol_permiso` | Tabla puente rol ↔ permiso | Puente | 40 |
+| `permiso` | Catálogo de capacidades evaluadas por `@PreAuthorize` | N:M con `rol` | 21 |
+| `rol_permiso` | Tabla puente rol ↔ permiso | Puente | 41 |
 | `usuario_rol` | Asignación de roles, con actor y fecha | Puente | 6 000 |
 | `identidad_externa` | Vínculo con GitHub. Su existencia marca el perfil como verificado | N:1 con `usuario` | 4 000 |
 | `token_refresco` | Sesiones activas, con familia para rotación y detección de reuso | N:1 con `usuario` | 50 000 |
