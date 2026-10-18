@@ -1,8 +1,8 @@
 # DevNet — monolito modular
 
 Backend de una red social para desarrolladores. Spring Boot 4 sobre PostgreSQL,
-organizado en cuatro módulos de negocio (`identity`, `profile`, `project`, `discussion`) más un kernel
-compartido.
+organizado en módulos de negocio (`identity`, `profile`, `project`, `discussion`,
+`interaction`, `messaging`) más un kernel compartido.
 
 ## Documentación
 
@@ -88,6 +88,16 @@ En IntelliJ IDEA pueden agregarse en **Run > Edit Configurations > Environment v
     leerla con su autor y su hilo (HU-11)
 11. `GET /api/v1/discusiones?tecnologia=` — listar y filtrar discusiones por tema, sin
     token (HU-12)
+12. `POST /api/v1/mensajes` con `destinatarioId` y `contenido` — enviar un mensaje privado (HU-17)
+13. `GET /api/v1/conversaciones` — bandeja propia, `[]` si está vacía (HU-18)
+14. `GET /api/v1/conversaciones/{id}/mensajes` — historial cronológico, solo participantes (HU-18)
+
+Las tres rutas de mensajería requieren Bearer JWT; enviar exige además `mensaje:enviar`.
+El remitente se obtiene del token y las lecturas se limitan a participantes. Flyway aplica
+`V8__integridad_y_auditoria_mensajeria.sql` al arrancar;
+la migración añade una clave foránea y el evento `MENSAJE_ENVIADO` sin guardar el texto.
+Antes de aplicarla sobre una base con mensajes previos, comprobar que cada
+`(conversacion_id, remitente_id)` exista en `participante_conversacion`.
 
 Al registrar una cuenta, `identity` publica `UsuarioRegistrado` y `profile` crea el perfil
 inicial. La lectura pública del perfil obtiene los proyectos desde
