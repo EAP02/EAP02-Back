@@ -41,7 +41,7 @@ class FronterasModularesTest {
     private static final String RAIZ = "com.codefactory.devnet";
 
     /** Modulos de negocio con codigo. Los vacios se anaden al implementarlos. */
-    private static final String[] MODULOS = {"identity", "profile", "project", "discussion", "interaction"};
+    private static final String[] MODULOS = {"identity", "profile", "project", "discussion", "interaction", "messaging"};
 
     // ------------------------------------------------------------------
     // Regla 1 - Un modulo solo alcanza a otro por su paquete api

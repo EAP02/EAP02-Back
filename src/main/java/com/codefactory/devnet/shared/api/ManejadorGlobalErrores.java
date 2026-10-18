@@ -100,9 +100,8 @@ public class ManejadorGlobalErrores {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<RespuestaError> cuerpoIlegible(HttpMessageNotReadableException ex,
                                                          HttpServletRequest req) {
-        // El mensaje original expone nombres de clase y posiciones del parser:
-        // se registra pero no se devuelve.
-        log.warn("Cuerpo ilegible en {} {}: {}", req.getMethod(), req.getRequestURI(), ex.getMessage());
+        // El parser puede incluir fragmentos del cuerpo (tambien mensajes privados).
+        log.warn("Cuerpo ilegible en {} {}", req.getMethod(), req.getRequestURI());
         return construir(CodigoErrorComun.CUERPO_ILEGIBLE, null, List.of(), req);
     }
 
@@ -184,10 +183,8 @@ public class ManejadorGlobalErrores {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<RespuestaError> integridad(DataIntegrityViolationException ex,
                                                      HttpServletRequest req) {
-        // La causa lleva el nombre de la restriccion violada y a veces valores de
-        // la fila: util en el log, nunca en la respuesta.
-        log.warn("Violacion de integridad en {} {}: {}",
-                req.getMethod(), req.getRequestURI(), ex.getMostSpecificCause().getMessage());
+        // La causa puede incluir valores de la fila, incluido contenido privado.
+        log.warn("Violacion de integridad en {} {}", req.getMethod(), req.getRequestURI());
         return construir(CodigoErrorComun.CONFLICTO_DATOS, null, List.of(), req);
     }
 
