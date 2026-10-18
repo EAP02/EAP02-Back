@@ -11,14 +11,19 @@
 > **dónde se publica el contrato entre módulos**: no en el `domain` del destino, sino en
 > su paquete `api`. Ver [ADR-006](ADR-006-contratos-entre-modulos-en-api.md).
 >
-> **Actualización (sprint 2, HU-11):** `discussion` ya tiene código; son cuatro módulos de
-> negocio. Consume `identity.api` y `project.api`, como fija el ADR-006.
+> **Actualización (sprint 2, HU-11):** `discussion` ya tiene código. Consume `identity.api` y
+> `project.api`, como fija el ADR-006.
 >
-> Este ADR describe además **nueve módulos**. En el código existen tres de negocio
-> (`identity`, `profile`, `project`) más `shared` y `config`. `discussion`,
-> `interaction`, `messaging`, `moderation` y `analytics` quedaron fuera del alcance; la
-> parte de moderación que sí se implementó —ocultar una publicación con motivo— vive
-> dentro de `project`. Los diagramas de `docs/arquitectura/` reflejan lo construido.
+> **Actualización (sprint 2, HU-13 y HU-14):** `interaction` ya tiene código: comentarios y
+> reacciones. Consume `identity.api` y el kernel `shared`; no importa nada de `project`.
+> La reputación que este ADR le asignaba sigue pendiente. El seguimiento entre miembros
+> (HU-15) se implementó dentro de `profile`.
+>
+> Este ADR describe además **nueve módulos**. En el código existen cinco de negocio
+> (`identity`, `profile`, `project`, `discussion`, `interaction`) más `shared` y `config`.
+> `messaging`, `moderation` y `analytics` quedaron fuera del alcance; la parte de moderación
+> que sí se implementó —ocultar una publicación con motivo— vive dentro de `project`. Los
+> diagramas de `docs/arquitectura/` reflejan lo construido.
 
 ## Contexto
 

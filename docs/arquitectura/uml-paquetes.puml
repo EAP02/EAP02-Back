@@ -1,6 +1,7 @@
 @startuml uml-paquetes
 ' DevNet - Diagrama de paquetes y componentes CON INTERFACES
 ' Entregable de Sprint 1 (lineamientos, 3.7 - Arquitectura de Software)
+' Actualizado en el sprint 2: modulo interaction (HU-13, HU-14) y seguimiento en profile (HU-15).
 '
 ' Refleja el codigo. Cada paquete existe bajo src/main/java/com/codefactory/devnet
 ' y cada interfaz esta declarada con la firma que aparece aqui.
@@ -63,6 +64,7 @@ package "profile" as PR #E8F5E9 {
   }
   package "profile.domain" {
     interface RepositorioPerfiles
+    interface RepositorioSeguimientos
   }
   package "profile.application" {}
   package "profile.infrastructure" {}
@@ -96,6 +98,19 @@ package "discussion" as DI #F3E5F5 {
   package "discussion.infrastructure" {}
 }
 
+package "interaction" as IN #FFFDE7 {
+  package "interaction.api" {
+    class ComentarioController
+    class ReaccionController
+  }
+  package "interaction.domain" {
+    interface RepositorioComentarios
+    interface RepositorioReacciones
+  }
+  package "interaction.application" {}
+  package "interaction.infrastructure" {}
+}
+
 package "config" as CF #FCE4EC {
   class SeguridadConfig <<Configuration>>
   class JwtConfig <<Configuration>>
@@ -109,12 +124,14 @@ PR ..> PJ : project.api.ProyectoPublicoConsulta
 PJ ..> ID : identity.api.UsuarioDirectorio
 DI ..> ID : identity.api.UsuarioDirectorio
 DI ..> PJ : project.api.CatalogoTecnologiasConsulta
+IN ..> ID : identity.api.UsuarioDirectorio
 
 ' --- Hacia el kernel: todos, y nadie al reves (regla 4)
 ID ..> SH
 PR ..> SH
 PJ ..> SH
 DI ..> SH
+IN ..> SH
 CF ..> SH
 
 note bottom of CF
@@ -138,10 +155,20 @@ end note
 
 note as N2
   <b>Modulos previstos y no construidos</b>
-  interaction, messaging, moderation y analytics
-  figuran en el ADR-001 y en el modelo de datos, pero no tienen
-  codigo. No se dibujan aqui: el diagrama describe el sistema
-  que existe.
+  messaging, moderation y analytics figuran en el ADR-001 y en el
+  modelo de datos, pero no tienen codigo. No se dibujan aqui: el
+  diagrama describe el sistema que existe.
+  interaction si existe desde el sprint 2 (comentarios y reacciones);
+  la reputacion que el ADR-001 le asignaba sigue pendiente.
+end note
+
+note as N3
+  <b>interaction y la tabla publicacion</b>
+  interaction no importa nada de project: comentarios y reacciones
+  cuelgan de publicacion por clave foranea, y su adaptador JDBC la
+  consulta por SQL para comprobar que existe y esta PUBLICADA.
+  El acoplamiento es de datos, no de codigo, y lo mismo hace discussion.
+  El seguimiento entre miembros (HU-15) vive en profile.
 end note
 
 @enduml
