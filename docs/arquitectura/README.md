@@ -68,10 +68,11 @@ y la infraestructura desplegada, así que cada caja de `c4-03-componentes-api.pu
 `uml-paquetes.puml` existe como paquete, y cada flecha entre módulos es un `import`
 verificable.
 
-El ADR-001 preveía nueve módulos. Hay cuatro de negocio —`identity`, `profile`,
-`project` y, desde el sprint 2 (HU-11), `discussion`— más el kernel `shared` y el
-cableado `config`. Quedaron fuera `interaction`, `messaging`, `moderation` y `analytics`; lo único de moderación que existe
-—ocultar una publicación con motivo obligatorio— vive dentro de `project`.
+El ADR-001 preveía nueve módulos. Hay cinco de negocio —`identity`, `profile`,
+`project` y, desde el sprint 2, `discussion` (HU-11) e `interaction` (HU-13 y HU-14)— más el
+kernel `shared` y el cableado `config`. El seguimiento entre miembros (HU-15) vive dentro de
+`profile`. Quedaron fuera `messaging`, `moderation` y `analytics`; lo único de moderación
+que existe —ocultar una publicación con motivo obligatorio— vive dentro de `project`.
 
 Esas capacidades **sí están en el modelo de datos**: sus tablas forman parte de las 29 de
 [`docs/bd/02-modelo-logico.md`](../bd/02-modelo-logico.md) y cuentan como entregable de
