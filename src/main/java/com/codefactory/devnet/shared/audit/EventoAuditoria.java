@@ -29,7 +29,7 @@ public record EventoAuditoria(
     public enum Operacion {
         INSERT, UPDATE, DELETE,
         ACCESO_DENEGADO, INICIO_SESION, INICIO_SESION_FALLIDO, CUENTA_BLOQUEADA,
-        REFRESCO_ROTADO, REFRESCO_REUSADO, CIERRE_SESION
+        REFRESCO_ROTADO, REFRESCO_REUSADO, CIERRE_SESION, MENSAJE_ENVIADO
     }
 
     /**
@@ -93,5 +93,11 @@ public record EventoAuditoria(
     public static EventoAuditoria cierreSesion(UUID usuarioId, UUID familia, String ip) {
         return new EventoAuditoria("token_refresco", Operacion.CIERRE_SESION,
                 familia.toString(), usuarioId, null, null, ip);
+    }
+
+    /** Solo metadatos: el contenido privado nunca entra en auditoria ni logs. */
+    public static EventoAuditoria mensajeEnviado(UUID mensajeId, UUID remitenteId) {
+        return new EventoAuditoria("mensaje", Operacion.MENSAJE_ENVIADO,
+                mensajeId.toString(), remitenteId, null, null, null);
     }
 }

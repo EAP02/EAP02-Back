@@ -17,11 +17,13 @@ Container_Boundary(api, "API DevNet") {
 
     Component(identity, "Identidad y acceso", "identity  [MODULO TRANSVERSAL]", "Registro, inicio de sesion local, emision de JWT RS256 y rotacion del token de refresco por familia con deteccion de reuso, resolucion de permisos RBAC.")
 
-    Component(profile, "Perfiles tecnicos", "profile", "Perfil del desarrollador y stack declarado contra el catalogo de tecnologias, con nivel y anios.")
+    Component(profile, "Perfiles tecnicos", "profile", "Perfil del desarrollador y stack declarado contra el catalogo de tecnologias, con nivel y anios. Seguimiento entre miembros: seguir, dejar de seguir y listas de seguidos y seguidores (HU-15).")
 
     Component(project, "Proyectos", "project", "Publicacion de proyectos y repositorios, consulta publica paginada por keyset, y ocultamiento de una publicacion por un moderador.")
 
     Component(discussion, "Discusiones", "discussion", "Creacion de discusiones etiquetadas con el catalogo de tecnologias, lectura publica con su autor y el hilo de participantes (HU-11), y listado paginado por keyset filtrable por etiqueta (HU-12). Persiste por JDBC: la entidad de publicacion es de project.")
+
+    Component(interaction, "Interaccion", "interaction", "Comentarios en proyectos y discusiones, con eliminacion por su autor o por un administrador auditada (HU-13), y reacciones con una sola por usuario y publicacion y contador de la publicacion (HU-14). Persiste por JDBC: la entidad de publicacion es de project.")
 
     Component(shared, "Kernel compartido", "shared", "Filtro de traceId, manejador global de errores (ADR-005), registro de auditoria, propiedades de configuracion y nombres de cache. No depende de ningun modulo.")
 
@@ -35,6 +37,7 @@ Rel(usuario, identity, "Se registra, autentica y renueva sesion", "REST")
 Rel(usuario, profile, "Consulta y edita su perfil", "REST")
 Rel(usuario, project, "Publica, edita, elimina y busca proyectos; consulta el catalogo", "REST")
 Rel(usuario, discussion, "Abre y lee discusiones", "REST")
+Rel(usuario, interaction, "Comenta, elimina sus comentarios y reacciona", "REST")
 
 ' --- Dependencias entre modulos. Siempre hacia el paquete api del destino (ADR-006).
 Rel_D(profile, identity, "identity.api.UsuarioDirectorio: quien esta autenticado")
@@ -43,18 +46,21 @@ Rel_D(profile, project, "project.api.ProyectoPublicoConsulta: proyectos del perf
 Rel_D(project, identity, "identity.api.UsuarioDirectorio: autor y permisos")
 Rel_D(discussion, identity, "identity.api.UsuarioDirectorio: autor y participantes")
 Rel_D(discussion, project, "project.api.CatalogoTecnologiasConsulta: etiquetas validas")
+Rel_D(interaction, identity, "identity.api.UsuarioDirectorio: autor y permisos")
 
 ' --- Todos los modulos consumen el kernel.
 Rel_D(identity, shared, "Errores, auditoria, propiedades")
 Rel_D(profile, shared, "Errores")
 Rel_D(project, shared, "Errores, auditoria")
 Rel_D(discussion, shared, "Errores")
+Rel_D(interaction, shared, "Errores, auditoria")
 Rel_D(config, shared, "Propiedades y nombres de cache")
 
 Rel(identity, bd, "JPA")
-Rel(profile, bd, "JPA")
+Rel(profile, bd, "JPA; JDBC para el seguimiento")
 Rel(project, bd, "JPA")
 Rel(discussion, bd, "JDBC (publicacion es compartida con project)")
+Rel(interaction, bd, "JDBC (publicacion es compartida con project)")
 Rel(shared, bd, "JDBC (auditoria: la tabla usa jsonb e inet)")
 
 SHOW_LEGEND()
@@ -70,8 +76,9 @@ end note
 
 note as N2
   <b>Alcance</b>
-  El ADR-001 preveia ademas interaction, messaging,
-  moderation y analytics. No se construyeron. Lo unico de moderacion
+  El ADR-001 preveia ademas messaging, moderation y analytics.
+  No se construyeron; interaction si, desde el sprint 2 (HU-13 y
+  HU-14), sin la reputacion que el ADR le asignaba. Lo unico de moderacion
   que existe -ocultar una publicacion, con motivo obligatorio y
   permiso publicacion:moderar- vive dentro de <b>project</b>.
   Las tablas de los modulos no construidos si estan en el modelo de

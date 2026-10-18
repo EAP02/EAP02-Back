@@ -11,7 +11,8 @@ tres APIs REST… documentación de las APIs»*).
   [ADR-002](../adr/ADR-002-estilo-api-rest-openapi.md#política-de-compatibilidad-y-retiro).
 - **Errores:** cuerpo uniforme con `errorCode`, `message`, `details`, `traceId`,
   `timestamp` y `path` en todas ellas (ADR-005, §3.3).
-- **Estado:** a 14 de octubre de 2026, sobre `develop`.
+- **Estado:** a 17 de octubre de 2026, sobre `develop`, con HU-13 (comentarios), HU-14
+  (reacciones) y HU-15 (seguimiento).
 
 ## Criterio de prioridad
 
@@ -29,7 +30,7 @@ Dentro de cada nivel, el orden es el de implementación.
 
 ## Inventario
 
-**17 endpoints en 5 recursos y 4 módulos.** «Público» significa que no exige token; todo lo
+**27 endpoints en 7 recursos y 5 módulos.** «Público» significa que no exige token; todo lo
 demás exige `Authorization: Bearer`.
 
 ### P1 — Habilitante · módulo `identity`
@@ -51,7 +52,7 @@ demás exige `Authorization: Bearer`.
 | `POST /api/v1/proyectos/{proyectoId}/archivado` | Elimina (archiva) con confirmación del título (R3) | `publicacion:archivar` o `publicacion:moderar` + ABAC | HU-08 | `ArchivarProyectoTest`, `ArchivarProyectoIT` |
 | `POST /api/v1/proyectos/{proyectoId}/ocultamiento` | Retira un proyecto de la vista pública con motivo (R2) | `publicacion:moderar` | HU-06 | `ControlAccesoPorRolIT` |
 
-### P3 — Descubrimiento y comunidad · módulos `project`, `discussion`, `profile`
+### P3 — Descubrimiento y comunidad · módulos `project`, `discussion`, `profile`, `interaction`
 
 | Método y ruta | Qué hace | Acceso | Historia | Pruebas |
 |---|---|---|---|---|
@@ -62,6 +63,16 @@ demás exige `Authorization: Bearer`.
 | `GET /api/v1/perfiles/{id}` | Perfil público con sus proyectos | Público | Perfil (sprint 1) | `pruebas-sprint1.md` §4 |
 | `PUT /api/v1/perfiles/{id}` | Edita el perfil propio y su stack | Autenticado + ABAC (titular) | Perfil (sprint 1) | `PerfilTest`, `PoliticaPerfilTest` |
 | `PATCH /api/v1/perfiles/{id}/avatar` | Cambia el avatar propio | Autenticado + ABAC (titular) | Perfil (sprint 1) | `pruebas-sprint1.md` §4.2 |
+| `POST /api/v1/publicaciones/{publicacionId}/comentarios` | Comenta un proyecto o una discusión; el autor sale del token; un comentario vacío se rechaza | `comentario:crear` | HU-13 | `ComentarioTest`, `ComentarioIT` |
+| `GET /api/v1/publicaciones/{publicacionId}/comentarios` | Comentarios visibles de una publicación, del más antiguo al más reciente | Público | HU-13 | `ComentarioIT` |
+| `DELETE /api/v1/comentarios/{comentarioId}` | Elimina un comentario (estado `ELIMINADO`): el autor el suyo, un ADMIN cualquiera, con auditoría | `comentario:editar` o `comentario:eliminar-ajeno` + ABAC | HU-13 | `ComentarioTest`, `ComentarioIT` |
+| `PUT /api/v1/publicaciones/{publicacionId}/reaccion` | Reacciona (`ME_GUSTA`, `UTIL`, `INNOVADOR`); una sola por usuario y publicación; el contador sube en uno | `reaccion:crear` | HU-14 | `TipoReaccionTest`, `ReaccionIT` |
+| `DELETE /api/v1/publicaciones/{publicacionId}/reaccion` | Quita la reacción propia; el contador baja en uno; idempotente | `reaccion:crear` | HU-14 | `ReaccionIT` |
+| `GET /api/v1/publicaciones/{publicacionId}/reacciones` | Total y desglose por tipo | Público | HU-14 | `ReaccionIT` |
+| `PUT /api/v1/perfiles/{id}/seguimiento` | Sigue a un miembro; no se puede seguir a uno mismo; idempotente | `usuario:seguir` | HU-15 | `SeguimientoTest`, `SeguimientoIT` |
+| `DELETE /api/v1/perfiles/{id}/seguimiento` | Deja de seguir a un miembro; idempotente | `usuario:seguir` | HU-15 | `SeguimientoIT` |
+| `GET /api/v1/perfiles/{id}/seguidos` | A quiénes sigue un miembro | Público | HU-15 | `SeguimientoIT` |
+| `GET /api/v1/perfiles/{id}/seguidores` | Quiénes siguen a un miembro | Público | HU-15 | `SeguimientoIT` |
 
 ### P4 — Soporte · módulo `project`
 
@@ -76,13 +87,13 @@ del `Dockerfile` para saber si el servicio está vivo.
 
 | Requisito | Cumplimiento |
 |---|---|
-| Al menos tres APIs REST (§3.7) | Cinco recursos: `auth`, `perfiles`, `proyectos`, `tecnologias`, `discusiones` |
-| Endpoints de diferentes dominios o módulos (§3.3) | Cuatro módulos: `identity`, `profile`, `project`, `discussion` |
+| Al menos tres APIs REST (§3.7) | Siete recursos: `auth`, `perfiles` (con su `seguimiento`), `proyectos`, `tecnologias`, `discusiones`, `publicaciones` (`comentarios` y `reaccion`) y `comentarios` |
+| Endpoints de diferentes dominios o módulos (§3.3) | Cinco módulos: `identity`, `profile`, `project`, `discussion`, `interaction` |
 | Diseño orientado a recursos (§3.3) | Sustantivos en plural; filtros como parámetros de consulta sobre la colección; las transiciones de estado como sub-recursos de acción (`/archivado`, `/ocultamiento`), no como `PATCH` del campo `estado` (ADR-002) |
 | RBAC por endpoint (§3.1, §3.4) | Cada escritura declara su permiso con `@PreAuthorize`; la propiedad se verifica además en el dominio (ABAC) |
 | Validación de payloads y errores uniformes (§3.3) | Bean Validation en la API y reglas en el dominio; todos los errores salen de `ManejadorGlobalErrores` |
 | Contrato versionado y documentado (§3.1, §3.3) | OpenAPI 3.1 generado, `/api/v1`, política de compatibilidad en el ADR-002 |
-| Paginación determinista (§5.3) | Las tres colecciones que crecen sin tope paginan por cursor sobre `(publicado_en, id)`, con un máximo de 50 por página |
+| Paginación determinista (§5.3) | Las tres colecciones de publicaciones paginan por cursor sobre `(publicado_en, id)`, con un máximo de 50 por página. **Los listados de comentarios, seguidos y seguidores todavía no paginan** (hallazgo H-24 de [`owasp-top-10.md`](../seguridad/owasp-top-10.md)) |
 
 ## Siguientes APIs: propuesta de prioridad
 
@@ -96,10 +107,11 @@ sprint es del backlog.
 |---|---|---|---|
 | P1 | Inscripción y verificación de MFA | Requisito de §3.4 para roles administrativos; hoy un moderador solo puede operar si se activa por SQL (hallazgo H-14) | — |
 | P1 | Suspender cuentas y asignar roles (`usuario:suspender`, `usuario:gestionar-roles`) | Sin ella, revocar el acceso exige tocar la base a mano (H-01) | — |
-| P2 | Comentar (`comentario:crear`) | Completa las discusiones: el hilo de HU-11 ya los muestra en cuanto existan | HU-11 |
 | P2 | Restituir una publicación oculta (R4) | Cierra la máquina de estados de `proceso-principal.md` | HU-06 |
 | P3 | Solicitar y resolver colaboraciones | Máquina de estados ya modelada en `colaboracion`; candidata a proceso principal | HU-07 |
-| P3 | Reaccionar (`reaccion:crear`) y reputación | Alimenta `evento_reputacion` y la regla de reputación mínima pendiente | Comentarios |
+| P3 | Reputación (`evento_reputacion`) | Las reacciones (HU-14) y los comentarios (HU-13) ya existen y son lo que debe alimentarla; falta la regla de reputación mínima | HU-13, HU-14 |
+| P3 | Reaccionar a comentarios | La tabla `reaccion_comentario` ya existe; HU-14 solo cubre reacciones a publicaciones | HU-14 |
+| P3 | Paginar comentarios, seguidos y seguidores | Cierra H-24; hoy devuelven la lista completa | HU-13, HU-15 |
 | P4 | Mensajería privada (`mensaje:enviar`) | Módulo `messaging` previsto en el ADR-001 | Reputación (`minima-para-mensaje-a-desconocido`) |
 
 ## Pendiente respecto al ADR-002
