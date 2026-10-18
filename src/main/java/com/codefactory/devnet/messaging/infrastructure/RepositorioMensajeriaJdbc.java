@@ -52,10 +52,11 @@ public class RepositorioMensajeriaJdbc implements RepositorioMensajeria {
                 RETURNING id, conversacion_id, remitente_id, contenido, enviado_en
                 """, MENSAJE, conversacionId, remitenteId, contenido).get(0);
         jdbc.update("""
-                UPDATE conversacion
-                   SET ultimo_mensaje_en = GREATEST(COALESCE(ultimo_mensaje_en, ?), ?)
-                 WHERE id = ?
-                """, mensaje.enviadoEn(), mensaje.enviadoEn(), conversacionId);
+                UPDATE conversacion c
+                   SET ultimo_mensaje_en = GREATEST(COALESCE(c.ultimo_mensaje_en, m.enviado_en), m.enviado_en)
+                  FROM mensaje m
+                 WHERE c.id = m.conversacion_id AND m.id = ?
+                """, mensaje.id());
         return mensaje;
     }
 
