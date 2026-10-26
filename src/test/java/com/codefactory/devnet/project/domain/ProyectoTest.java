@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
@@ -191,8 +192,9 @@ class ProyectoTest {
         @Test
         @DisplayName("permite cuando el autor declarado coincide")
         void permite_autor_propio() {
-            // Act + Assert: no lanza
-            Proyecto.exigirAutoriaPropia(AUTOR, AUTOR);
+            // Act + Assert
+            assertThatCode(() -> Proyecto.exigirAutoriaPropia(AUTOR, AUTOR))
+                    .doesNotThrowAnyException();
         }
 
         @Test
@@ -200,8 +202,9 @@ class ProyectoTest {
         void permite_sin_autor_declarado() {
             // Arrange: el campo es opcional; el autor real sale siempre del token
 
-            // Act + Assert: no lanza
-            Proyecto.exigirAutoriaPropia(null, AUTOR);
+            // Act + Assert
+            assertThatCode(() -> Proyecto.exigirAutoriaPropia(null, AUTOR))
+                    .doesNotThrowAnyException();
         }
     }
 
