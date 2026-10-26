@@ -138,22 +138,6 @@ public class UsuarioEntity {
 
     // ------------------------------------------------------------------
 
-    public UUID getId() {
-        return id;
-    }
-
-    public String getCorreo() {
-        return correo;
-    }
-
-    public String getNombreUsuario() {
-        return nombreUsuario;
-    }
-
-    public EstadoUsuario getEstado() {
-        return estado;
-    }
-
     public void asignarRol(RolEntity rol) {
         this.roles.add(rol);
     }

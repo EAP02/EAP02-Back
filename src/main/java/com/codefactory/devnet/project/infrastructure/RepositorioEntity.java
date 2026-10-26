@@ -79,10 +79,6 @@ public class RepositorioEntity {
         return url;
     }
 
-    public String getProveedor() {
-        return proveedor;
-    }
-
     @Override
     public boolean equals(Object otro) {
         if (this == otro) {

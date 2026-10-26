@@ -30,15 +30,14 @@ public enum CodigoErrorPerfil implements CodigoError {
     /** HU-15: la cuenta no puede seguir a nadie (no esta activa). */
     SEGUIMIENTO_SIN_PERMISO_DE_ESCRITURA(422, "Tu cuenta no puede seguir usuarios en este momento.");
 
-    private final int estado;
-    private final String mensaje;
+    private final Definicion definicion;
 
     CodigoErrorPerfil(int estado, String mensaje) {
-        this.estado = estado;
-        this.mensaje = mensaje;
+        this.definicion = new Definicion(estado, mensaje);
     }
 
-    public String codigo() { return name(); }
-    public int estadoHttp() { return estado; }
-    public String mensajePorDefecto() { return mensaje; }
+    @Override
+    public Definicion definicion() {
+        return definicion;
+    }
 }

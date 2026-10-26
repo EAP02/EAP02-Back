@@ -95,12 +95,6 @@ public class RepositorioTokensRefrescoJpa implements RepositorioTokensRefresco {
         return jpa.revocarFamilia(familia, momento);
     }
 
-    @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public int revocarDeUsuario(UUID usuarioId, Instant momento) {
-        return jpa.revocarDeUsuario(usuarioId, momento);
-    }
-
     // ------------------------------------------------------------------
 
     private TokenRefrescoEntity aEntidad(Emision emision) {

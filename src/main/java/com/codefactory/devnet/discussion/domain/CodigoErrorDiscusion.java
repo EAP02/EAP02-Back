@@ -27,26 +27,14 @@ public enum CodigoErrorDiscusion implements CodigoError {
             404,
             "La discusion no existe o no esta disponible para ti.");
 
-    private final int estado;
-    private final String mensaje;
+    private final Definicion definicion;
 
     CodigoErrorDiscusion(int estado, String mensaje) {
-        this.estado = estado;
-        this.mensaje = mensaje;
+        this.definicion = new Definicion(estado, mensaje);
     }
 
     @Override
-    public String codigo() {
-        return name();
-    }
-
-    @Override
-    public int estadoHttp() {
-        return estado;
-    }
-
-    @Override
-    public String mensajePorDefecto() {
-        return mensaje;
+    public Definicion definicion() {
+        return definicion;
     }
 }

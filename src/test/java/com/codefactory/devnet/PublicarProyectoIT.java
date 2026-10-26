@@ -1,11 +1,15 @@
 package com.codefactory.devnet;
 
 import com.jayway.jsonpath.JsonPath;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -41,6 +45,12 @@ class PublicarProyectoIT {
 
     @Autowired
     private SoporteDatosPrueba datos;
+
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    @Autowired
+    private EntityManager em;
 
     // ==================================================================
     @Nested
@@ -105,6 +115,30 @@ class PublicarProyectoIT {
             // Assert
             mvc.perform(get(RUTA + "/autor/" + dev.id()))
                     .andExpect(jsonPath("$.contenido[0].tecnologias", org.hamcrest.Matchers.hasSize(3)));
+        }
+
+        @ParameterizedTest(name = "{0} -> {1}")
+        @CsvSource({
+                "https://github.com/prueba/, GITHUB",
+                "https://GitLab.com/prueba/, GITLAB",
+                "https://git.ejemplo.com/prueba/, OTRO"})
+        @DisplayName("registra el proveedor del repositorio segun el dominio, y uno autoalojado como OTRO")
+        void registra_el_proveedor(String base, String proveedor) throws Exception {
+            // Arrange
+            var dev = datos.crear("DESARROLLADOR", false);
+            String repo = base + UUID.randomUUID();
+
+            // Act
+            mvc.perform(post(RUTA)
+                            .header("Authorization", "Bearer " + autenticar(dev.correo()))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(cuerpo(TITULO, DESCRIPCION, datos.tecnologiasAprobadas(1), repo)))
+                    .andExpect(status().isCreated());
+
+            // Assert: JPA difiere el INSERT; sin flush, JDBC no veria la fila
+            em.flush();
+            assertThat(jdbc.queryForObject("SELECT proveedor FROM repositorio WHERE url = ?", String.class, repo))
+                    .isEqualTo(proveedor);
         }
 
         // Existio aqui una prueba que exigia perfil para publicar

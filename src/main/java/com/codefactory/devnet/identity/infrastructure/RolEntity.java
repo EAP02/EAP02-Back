@@ -33,9 +33,6 @@ public class RolEntity {
     @Column(name = "codigo", nullable = false, unique = true)
     private String codigo;
 
-    @Column(name = "descripcion", nullable = false)
-    private String descripcion;
-
     /**
      * MODERADOR y ADMIN lo tienen en {@code true}.
      *
@@ -56,28 +53,8 @@ public class RolEntity {
         // exigido por JPA
     }
 
-    public static RolEntity nuevo(String codigo, String descripcion, boolean exigeMfa) {
-        RolEntity rol = new RolEntity();
-        rol.codigo = codigo;
-        rol.descripcion = descripcion;
-        rol.exigeMfa = exigeMfa;
-        return rol;
-    }
-
-    public void agregarPermiso(PermisoEntity permiso) {
-        permisos.add(permiso);
-    }
-
-    public Short getId() {
-        return id;
-    }
-
     public String getCodigo() {
         return codigo;
-    }
-
-    public String getDescripcion() {
-        return descripcion;
     }
 
     public boolean exigeMfa() {

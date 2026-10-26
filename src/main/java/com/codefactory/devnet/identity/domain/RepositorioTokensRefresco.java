@@ -62,13 +62,4 @@ public interface RepositorioTokensRefresco {
      * @return cuantas filas se revocaron
      */
     int revocarFamilia(UUID familia, Instant momento);
-
-    /**
-     * Revoca todas las familias vigentes de un usuario.
-     *
-     * <p>Para "cerrar sesion en todos los dispositivos" y, sobre todo, para invocarla
-     * cuando una cuenta pase a suspendida o desactivada. Hoy ningun caso de uso cambia
-     * el estado de una cuenta, asi que no tiene quien la llame todavia.</p>
-     */
-    int revocarDeUsuario(UUID usuarioId, Instant momento);
 }

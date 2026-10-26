@@ -22,12 +22,34 @@ package com.codefactory.devnet.shared.api;
  */
 public interface CodigoError {
 
+    /**
+     * Estado HTTP y mensaje de un codigo, juntos en un solo valor.
+     *
+     * <p>Existe para que cada {@code enum} solo tenga que guardar esto y devolverlo:
+     * un {@code enum} no puede heredar de una clase, asi que lo comun vive en los
+     * metodos por defecto de esta interfaz y no se repite en cada modulo.</p>
+     */
+    record Definicion(int estadoHttp, String mensaje) {
+    }
+
+    /** Lo aporta {@link Enum#name()}: el nombre de la constante es el codigo. */
+    String name();
+
+    /** El estado y el mensaje de este codigo. */
+    Definicion definicion();
+
     /** Codigo estable en SCREAMING_SNAKE_CASE. Forma parte del contrato publico. */
-    String codigo();
+    default String codigo() {
+        return name();
+    }
 
     /** Estado HTTP con el que se responde esta condicion. Por ejemplo, 422. */
-    int estadoHttp();
+    default int estadoHttp() {
+        return definicion().estadoHttp();
+    }
 
     /** Mensaje en espanol dirigido a una persona, sin detalles tecnicos. */
-    String mensajePorDefecto();
+    default String mensajePorDefecto() {
+        return definicion().mensaje();
+    }
 }
