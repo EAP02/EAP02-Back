@@ -6,6 +6,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -166,6 +167,80 @@ class ProyectoTest {
 
             // Assert
             assertThat(proyecto.urlRepositorio()).isNull();
+        }
+    }
+
+    // ==================================================================
+    @Nested
+    @DisplayName("Limites de cada campo")
+    class Limites {
+
+        @Test
+        @DisplayName("el titulo debe tener entre 5 y 200 caracteres")
+        void titulo_acotado() {
+            assertThat(camposInvalidos("Abc", DESCRIPCION_VALIDA, null, STACK, null)).containsExactly("titulo");
+            assertThat(camposInvalidos("t".repeat(Proyecto.TITULO_MAX + 1), DESCRIPCION_VALIDA, null, STACK, null))
+                    .containsExactly("titulo");
+        }
+
+        @Test
+        @DisplayName("la descripcion necesita un minimo de 20 caracteres")
+        void descripcion_minima() {
+            assertThat(camposInvalidos(TITULO_VALIDO, "Muy corta", null, STACK, null))
+                    .containsExactly("descripcion");
+        }
+
+        @Test
+        @DisplayName("un resumen enviado de mas de 300 caracteres se rechaza")
+        void resumen_maximo() {
+            String largo = "r".repeat(Proyecto.RESUMEN_MAX + 1);
+
+            assertThat(camposInvalidos(TITULO_VALIDO, DESCRIPCION_VALIDA, largo, STACK, null))
+                    .containsExactly("resumen");
+        }
+
+        @Test
+        @DisplayName("sin resumen y con una descripcion larga, el derivado se corta a 300 con puntos suspensivos")
+        void resumen_derivado_recortado() {
+            // Arrange
+            String descripcionLarga = "d".repeat(Proyecto.RESUMEN_MAX + 50);
+
+            // Act
+            Proyecto proyecto = Proyecto.publicar(AUTOR, TITULO_VALIDO, descripcionLarga,
+                    null, STACK, null, null, null, null, false);
+
+            // Assert
+            assertThat(proyecto.resumen()).hasSize(Proyecto.RESUMEN_MAX).endsWith("...");
+        }
+
+        @Test
+        @DisplayName("sin tecnologias se rechaza, aunque la lista venga nula")
+        void tecnologias_nulas() {
+            assertThat(camposInvalidos(TITULO_VALIDO, DESCRIPCION_VALIDA, null, null, null))
+                    .containsExactly("tecnologias");
+        }
+
+        @Test
+        @DisplayName("la demo, como el repositorio, solo se acepta con https")
+        void demo_https() {
+            // Act + Assert: rechaza http
+            assertThat(camposInvalidos(TITULO_VALIDO, DESCRIPCION_VALIDA, null, STACK, "http://demo.ejemplo.com"))
+                    .containsExactly("urlDemo");
+
+            // ...y conserva https, con la licencia en blanco tratada como ausente
+            Proyecto proyecto = Proyecto.publicar(AUTOR, TITULO_VALIDO, DESCRIPCION_VALIDA,
+                    null, STACK, null, null, "  ", "https://demo.ejemplo.com", false);
+            assertThat(proyecto.urlDemo()).isEqualTo("https://demo.ejemplo.com");
+            assertThat(proyecto.licencia()).isNull();
+        }
+
+        private List<String> camposInvalidos(String titulo, String descripcion, String resumen,
+                                             Set<Short> tecnologias, String urlDemo) {
+            ExcepcionNegocio ex = catchThrowableOfType(ExcepcionNegocio.class,
+                    () -> Proyecto.publicar(AUTOR, titulo, descripcion, resumen, tecnologias,
+                            null, null, null, urlDemo, false));
+            assertThat(ex).as("deberia rechazarse").isNotNull();
+            return ex.detalles().stream().map(DetalleError::campo).toList();
         }
     }
 

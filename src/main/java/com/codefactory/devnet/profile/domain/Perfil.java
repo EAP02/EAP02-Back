@@ -53,11 +53,6 @@ public class Perfil {
         this.linkedinUrl = urlOpcional(linkedinUrl, "linkedinUrl");
     }
 
-    /** {@code true} cuando el titular ya lo completo. */
-    public boolean estaCompleto() {
-        return nombre != null && !nombre.isBlank() && !tecnologias.isEmpty();
-    }
-
     public void actualizarAvatar(String avatarUrl) {
         this.avatarUrl = requerido(avatarUrl, "avatarUrl");
     }

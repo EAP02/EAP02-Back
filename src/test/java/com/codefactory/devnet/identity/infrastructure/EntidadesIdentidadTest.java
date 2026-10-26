@@ -41,12 +41,13 @@ class EntidadesIdentidadTest {
         void igualdad_por_identificador() {
             // Arrange
             UsuarioEntity ana = UsuarioEntity.nueva("ana@ejemplo.com", "ana_dev", HASH);
+            UsuarioEntity mismaInstancia = ana;
             UsuarioEntity otra = UsuarioEntity.nueva("ana@ejemplo.com", "ana_dev", HASH);
 
             // Act + Assert
             assertThat(ana)
-                    .isEqualTo(ana)
-                    .hasSameHashCodeAs(ana)
+                    .isEqualTo(mismaInstancia)
+                    .hasSameHashCodeAs(mismaInstancia)
                     .isNotEqualTo(otra)
                     .isNotEqualTo("ana_dev")
                     .isNotEqualTo(null);
@@ -60,13 +61,15 @@ class EntidadesIdentidadTest {
         @Test
         @DisplayName("sin identificador, solo son iguales a si mismas")
         void igualdad_sin_identificador() {
-            // Arrange: el protector de JPA, que es como Hibernate las instancia
+            // Arrange: el constructor protegido de JPA, que es como Hibernate las instancia
             RolEntity rol = new RolEntity();
+            RolEntity mismoRol = rol;
             PermisoEntity permiso = new PermisoEntity();
+            PermisoEntity mismoPermiso = permiso;
 
             // Act + Assert
-            assertThat(rol).isEqualTo(rol).isNotEqualTo(new RolEntity()).hasSameHashCodeAs(new RolEntity());
-            assertThat(permiso).isEqualTo(permiso).isNotEqualTo(new PermisoEntity())
+            assertThat(rol).isEqualTo(mismoRol).isNotEqualTo(new RolEntity()).hasSameHashCodeAs(new RolEntity());
+            assertThat(permiso).isEqualTo(mismoPermiso).isNotEqualTo(new PermisoEntity())
                     .hasSameHashCodeAs(new PermisoEntity());
         }
     }
