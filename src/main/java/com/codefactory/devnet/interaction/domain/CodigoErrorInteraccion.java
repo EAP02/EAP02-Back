@@ -48,26 +48,14 @@ public enum CodigoErrorInteraccion implements CodigoError {
             422,
             "Tu cuenta no puede reaccionar en este momento.");
 
-    private final int estado;
-    private final String mensaje;
+    private final Definicion definicion;
 
     CodigoErrorInteraccion(int estado, String mensaje) {
-        this.estado = estado;
-        this.mensaje = mensaje;
+        this.definicion = new Definicion(estado, mensaje);
     }
 
     @Override
-    public String codigo() {
-        return name();
-    }
-
-    @Override
-    public int estadoHttp() {
-        return estado;
-    }
-
-    @Override
-    public String mensajePorDefecto() {
-        return mensaje;
+    public Definicion definicion() {
+        return definicion;
     }
 }

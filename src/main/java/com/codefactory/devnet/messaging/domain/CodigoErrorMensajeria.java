@@ -8,15 +8,14 @@ public enum CodigoErrorMensajeria implements CodigoError {
     MENSAJE_PROPIO(422, "No puedes enviarte un mensaje a ti mismo."),
     MENSAJE_REMITENTE_INACTIVO(422, "Tu cuenta no puede enviar mensajes en este momento.");
 
-    private final int estado;
-    private final String mensaje;
+    private final Definicion definicion;
 
     CodigoErrorMensajeria(int estado, String mensaje) {
-        this.estado = estado;
-        this.mensaje = mensaje;
+        this.definicion = new Definicion(estado, mensaje);
     }
 
-    public String codigo() { return name(); }
-    public int estadoHttp() { return estado; }
-    public String mensajePorDefecto() { return mensaje; }
+    @Override
+    public Definicion definicion() {
+        return definicion;
+    }
 }
