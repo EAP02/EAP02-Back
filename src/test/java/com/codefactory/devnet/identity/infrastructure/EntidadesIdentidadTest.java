@@ -42,6 +42,7 @@ class EntidadesIdentidadTest {
             // Arrange
             UsuarioEntity ana = UsuarioEntity.nueva("ana@ejemplo.com", "ana_dev", HASH);
             UsuarioEntity mismaInstancia = ana;
+            Object otroTipo = "ana_dev";
             UsuarioEntity otra = UsuarioEntity.nueva("ana@ejemplo.com", "ana_dev", HASH);
 
             // Act + Assert
@@ -49,7 +50,7 @@ class EntidadesIdentidadTest {
                     .isEqualTo(mismaInstancia)
                     .hasSameHashCodeAs(mismaInstancia)
                     .isNotEqualTo(otra)
-                    .isNotEqualTo("ana_dev")
+                    .isNotEqualTo(otroTipo)
                     .isNotEqualTo(null);
         }
     }

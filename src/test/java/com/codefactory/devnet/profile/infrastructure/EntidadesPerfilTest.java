@@ -27,6 +27,7 @@ class EntidadesPerfilTest {
         PerfilEntity perfil = PerfilEntity.nuevo(usuario, "Ana", "Backend");
         PerfilEntity mismaInstancia = perfil;
         PerfilEntity mismaFila = PerfilEntity.nuevo(usuario, "Otro nombre", null);
+        Object otroTipo = "Ana";
 
         // Act + Assert
         assertThat(perfil)
@@ -34,7 +35,7 @@ class EntidadesPerfilTest {
                 .isEqualTo(mismaFila)
                 .hasSameHashCodeAs(mismaFila)
                 .isNotEqualTo(PerfilEntity.nuevo(UUID.randomUUID(), "Ana", "Backend"))
-                .isNotEqualTo("Ana");
+                .isNotEqualTo(otroTipo);
     }
 
     @Test
@@ -48,6 +49,7 @@ class EntidadesPerfilTest {
                 new TecnologiaDeclarada((short) 1, NivelTecnologia.EXPERTO, (short) 8));
         var spring = TecnologiaDeclaradaEmbeddable.de(
                 new TecnologiaDeclarada((short) 2, NivelTecnologia.BASICO, null));
+        Object otroTipo = (short) 1;
 
         // Act + Assert
         assertThat(java)
@@ -55,6 +57,6 @@ class EntidadesPerfilTest {
                 .isEqualTo(javaExperto)
                 .hasSameHashCodeAs(javaExperto)
                 .isNotEqualTo(spring)
-                .isNotEqualTo((short) 1);
+                .isNotEqualTo(otroTipo);
     }
 }

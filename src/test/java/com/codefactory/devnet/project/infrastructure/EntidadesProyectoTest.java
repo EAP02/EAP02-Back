@@ -25,6 +25,7 @@ class EntidadesProyectoTest {
         Instant ahora = Instant.now();
         PublicacionEntity publicacion = publicacion(id, ahora);
         PublicacionEntity mismaInstancia = publicacion;
+        Object otroTipo = id;
 
         // Act + Assert
         assertThat(publicacion)
@@ -32,7 +33,7 @@ class EntidadesProyectoTest {
                 .isEqualTo(publicacion(id, ahora))
                 .hasSameHashCodeAs(publicacion(id, ahora))
                 .isNotEqualTo(publicacion(UUID.randomUUID(), ahora))
-                .isNotEqualTo(id);
+                .isNotEqualTo(otroTipo);
     }
 
     @Test
@@ -42,12 +43,13 @@ class EntidadesProyectoTest {
         UUID proyecto = UUID.randomUUID();
         RepositorioEntity repo = RepositorioEntity.de(proyecto, "https://github.com/ana/motor");
         RepositorioEntity mismaInstancia = repo;
+        Object otroTipo = "https://github.com/ana/motor";
 
         // Act + Assert
         assertThat(repo)
                 .isEqualTo(mismaInstancia)
                 .isNotEqualTo(RepositorioEntity.de(proyecto, "https://github.com/ana/motor"))
-                .isNotEqualTo("https://github.com/ana/motor");
+                .isNotEqualTo(otroTipo);
     }
 
     @Test
@@ -58,12 +60,13 @@ class EntidadesProyectoTest {
         PublicacionProyectoEntity mismoDetalle = detalle;
         TecnologiaEntity tecnologia = new TecnologiaEntity();
         TecnologiaEntity mismaTecnologia = tecnologia;
+        Object otroTipo = "java";
 
         // Act + Assert
         assertThat(detalle).isEqualTo(mismoDetalle).isNotEqualTo(new PublicacionProyectoEntity())
                 .hasSameHashCodeAs(new PublicacionProyectoEntity());
         assertThat(tecnologia).isEqualTo(mismaTecnologia).isNotEqualTo(new TecnologiaEntity())
-                .isNotEqualTo("java");
+                .isNotEqualTo(otroTipo);
     }
 
     private static PublicacionEntity publicacion(UUID id, Instant publicadoEn) {
