@@ -27,30 +27,12 @@ public class PermisoEntity {
     @Column(name = "codigo", nullable = false, unique = true)
     private String codigo;
 
-    @Column(name = "descripcion", nullable = false)
-    private String descripcion;
-
     protected PermisoEntity() {
         // exigido por JPA
     }
 
-    public static PermisoEntity nuevo(String codigo, String descripcion) {
-        PermisoEntity permiso = new PermisoEntity();
-        permiso.codigo = codigo;
-        permiso.descripcion = descripcion;
-        return permiso;
-    }
-
-    public Short getId() {
-        return id;
-    }
-
     public String getCodigo() {
         return codigo;
-    }
-
-    public String getDescripcion() {
-        return descripcion;
     }
 
     @Override
