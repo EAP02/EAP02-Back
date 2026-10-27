@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -35,7 +36,17 @@ class PerfilTest {
 
             // Assert: exigir tecnologias aqui reventaria al leer el perfil nuevo
             assertThat(perfil.tecnologias()).isEmpty();
-            assertThat(perfil.estaCompleto()).isFalse();
+        }
+
+        @Test
+        @DisplayName("una coleccion nula desde persistencia se lee como stack vacio")
+        void tecnologias_nulas_son_vacias() {
+            // Act
+            Perfil perfil = new Perfil(ID, "ana_dev", null, null, null, null, null);
+
+            // Assert
+            assertThat(perfil.tecnologias()).isEmpty();
+            assertThat(perfil.idsDeTecnologias()).isEmpty();
         }
     }
 
@@ -52,6 +63,58 @@ class PerfilTest {
             // Act + Assert
             assertThatThrownBy(() -> perfil.actualizar("Ana", "Bio suficiente", List.of(), null, null))
                     .isInstanceOf(PerfilInvalidoException.class);
+        }
+
+        @Test
+        @DisplayName("una lista de tecnologias ausente es lo mismo que una vacia")
+        void tecnologias_ausentes() {
+            // Arrange
+            Perfil perfil = perfilVacio();
+
+            // Act + Assert
+            assertThatThrownBy(() -> perfil.actualizar("Ana", "Bio suficiente", null, null, null))
+                    .isInstanceOfSatisfying(PerfilInvalidoException.class,
+                            e -> assertThat(e.campo()).isEqualTo("tecnologias"));
+        }
+
+        @Test
+        @DisplayName("rechaza un elemento vacio dentro de la lista")
+        void tecnologia_vacia() {
+            // Arrange: List.of no admite nulos, que es justo lo que llega de un JSON con null
+            Perfil perfil = perfilVacio();
+            List<TecnologiaDeclarada> conHueco = Arrays.asList(JAVA, null);
+
+            // Act + Assert
+            assertThatThrownBy(() -> perfil.actualizar("Ana", "Bio suficiente", conHueco, null, null))
+                    .isInstanceOfSatisfying(PerfilInvalidoException.class,
+                            e -> assertThat(e.campo()).isEqualTo("tecnologias"));
+        }
+
+        @Test
+        @DisplayName("el nombre y la biografia son obligatorios, y senala cual falta")
+        void campos_obligatorios() {
+            // Arrange
+            Perfil perfil = perfilVacio();
+
+            // Act + Assert
+            assertThatThrownBy(() -> perfil.actualizar("   ", "Bio suficiente", List.of(JAVA), null, null))
+                    .isInstanceOfSatisfying(PerfilInvalidoException.class,
+                            e -> assertThat(e.campo()).isEqualTo("nombre"));
+            assertThatThrownBy(() -> perfil.actualizar("Ana", null, List.of(JAVA), null, null))
+                    .isInstanceOfSatisfying(PerfilInvalidoException.class,
+                            e -> assertThat(e.campo()).isEqualTo("biografia"));
+        }
+
+        @Test
+        @DisplayName("el avatar no puede quedar en blanco")
+        void avatar_obligatorio() {
+            // Arrange
+            Perfil perfil = perfilVacio();
+
+            // Act + Assert
+            assertThatThrownBy(() -> perfil.actualizarAvatar(" "))
+                    .isInstanceOfSatisfying(PerfilInvalidoException.class,
+                            e -> assertThat(e.campo()).isEqualTo("avatarUrl"));
         }
 
         @Test
@@ -124,7 +187,6 @@ class PerfilTest {
             // Assert
             assertThat(perfil.githubUrl()).isNull();
             assertThat(perfil.linkedinUrl()).isNull();
-            assertThat(perfil.estaCompleto()).isTrue();
         }
     }
 

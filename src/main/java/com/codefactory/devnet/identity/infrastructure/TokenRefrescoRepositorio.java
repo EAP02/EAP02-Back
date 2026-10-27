@@ -63,14 +63,4 @@ public interface TokenRefrescoRepositorio extends JpaRepository<TokenRefrescoEnt
               AND t.revocadoEn IS NULL
            """)
     int revocarFamilia(@Param("familia") UUID familia, @Param("momento") Instant momento);
-
-    /** Todas las sesiones de un usuario. Ataca {@code ix_token_usuario_vigente}. */
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query("""
-           UPDATE TokenRefrescoEntity t
-              SET t.revocadoEn = :momento
-            WHERE t.usuarioId = :usuarioId
-              AND t.revocadoEn IS NULL
-           """)
-    int revocarDeUsuario(@Param("usuarioId") UUID usuarioId, @Param("momento") Instant momento);
 }

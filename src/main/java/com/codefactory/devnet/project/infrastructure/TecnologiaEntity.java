@@ -42,15 +42,6 @@ public class TecnologiaEntity {
         // exigido por JPA
     }
 
-    public static TecnologiaEntity nueva(String nombre, String slug, String categoria) {
-        TecnologiaEntity tecnologia = new TecnologiaEntity();
-        tecnologia.nombre = nombre;
-        tecnologia.slug = slug;
-        tecnologia.categoria = categoria;
-        tecnologia.aprobada = true;
-        return tecnologia;
-    }
-
     public Short getId() {
         return id;
     }
@@ -65,10 +56,6 @@ public class TecnologiaEntity {
 
     public String getCategoria() {
         return categoria;
-    }
-
-    public boolean isAprobada() {
-        return aprobada;
     }
 
     @Override

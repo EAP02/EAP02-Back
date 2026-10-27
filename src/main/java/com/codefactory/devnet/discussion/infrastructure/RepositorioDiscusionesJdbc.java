@@ -4,6 +4,7 @@ import com.codefactory.devnet.discussion.domain.CategoriaDiscusion;
 import com.codefactory.devnet.discussion.domain.Discusion;
 import com.codefactory.devnet.discussion.domain.RepositorioDiscusiones;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,8 +44,12 @@ public class RepositorioDiscusionesJdbc implements RepositorioDiscusiones {
 
     private final JdbcTemplate jdbc;
 
+    /** Para los {@code IN} de tamano variable: Spring expande {@code :ids} y el SQL queda constante. */
+    private final NamedParameterJdbcTemplate jdbcConNombres;
+
     public RepositorioDiscusionesJdbc(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
+        this.jdbcConNombres = new NamedParameterJdbcTemplate(jdbc);
     }
 
     /**
@@ -205,18 +210,17 @@ public class RepositorioDiscusionesJdbc implements RepositorioDiscusiones {
         if (discusiones.isEmpty()) {
             return porDiscusion;
         }
-        String marcadores = String.join(", ", java.util.Collections.nCopies(discusiones.size(), "?"));
-        jdbc.query("""
+        jdbcConNombres.query("""
                 SELECT publicacion_id, tecnologia_id FROM publicacion_tecnologia
-                 WHERE publicacion_id IN (%s)
+                 WHERE publicacion_id IN (:ids)
                  ORDER BY tecnologia_id
-                """.formatted(marcadores),
+                """,
+                Map.of("ids", discusiones),
                 rs -> {
                     porDiscusion
                             .computeIfAbsent(rs.getObject("publicacion_id", UUID.class), k -> new LinkedHashSet<>())
                             .add(rs.getShort("tecnologia_id"));
-                },
-                discusiones.toArray());
+                });
         return porDiscusion;
     }
 

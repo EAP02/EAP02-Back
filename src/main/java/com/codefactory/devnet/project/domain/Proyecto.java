@@ -283,51 +283,12 @@ public class Proyecto {
 
         List<DetalleError> fallos = new ArrayList<>();
 
-        String tituloLimpio = recortar(titulo);
-        if (tituloLimpio.isEmpty()) {
-            fallos.add(DetalleError.de("titulo", "obligatorio"));
-        } else if (tituloLimpio.length() < TITULO_MIN || tituloLimpio.length() > TITULO_MAX) {
-            fallos.add(DetalleError.de("titulo", tituloLimpio.length(),
-                    "longitud_entre_" + TITULO_MIN + "_y_" + TITULO_MAX));
-        }
-
-        String descripcionLimpia = recortar(descripcion);
-        if (descripcionLimpia.isEmpty()) {
-            fallos.add(DetalleError.de("descripcion", "obligatorio"));
-        } else if (descripcionLimpia.length() < DESCRIPCION_MIN) {
-            fallos.add(DetalleError.de("descripcion", descripcionLimpia.length(),
-                    "longitud_minima_" + DESCRIPCION_MIN));
-        }
-
-        // El resumen no lo pide la HU, pero la columna es NOT NULL. Si no viene, se
-        // deriva de la descripcion en vez de rechazar la peticion por un campo que el
-        // usuario no sabe que existe.
-        String resumenFinal = recortar(resumen);
-        if (resumenFinal.isEmpty() && !descripcionLimpia.isEmpty()) {
-            resumenFinal = descripcionLimpia.length() > RESUMEN_MAX
-                    ? descripcionLimpia.substring(0, RESUMEN_MAX - 3) + "..."
-                    : descripcionLimpia;
-        } else if (resumenFinal.length() > RESUMEN_MAX) {
-            fallos.add(DetalleError.de("resumen", resumenFinal.length(), "longitud_maxima_" + RESUMEN_MAX));
-        }
-
-        Set<Short> stack = tecnologias == null ? Set.of() : new LinkedHashSet<>(tecnologias);
-        if (stack.size() < TECNOLOGIAS_MIN || stack.size() > TECNOLOGIAS_MAX) {
-            fallos.add(DetalleError.de("tecnologias", stack.size(),
-                    "entre_" + TECNOLOGIAS_MIN + "_y_" + TECNOLOGIAS_MAX));
-        }
-
-        // El enlace al repositorio es opcional, pero si viene tiene que ser https.
-        // http permitiria degradar la conexion de quien siga el enlace.
-        String repo = recortar(urlRepositorio);
-        if (!repo.isEmpty() && !repo.toLowerCase().startsWith("https://")) {
-            fallos.add(DetalleError.de("urlRepositorio", repo, "debe_ser_https"));
-        }
-
-        String demo = recortar(urlDemo);
-        if (!demo.isEmpty() && !demo.toLowerCase().startsWith("https://")) {
-            fallos.add(DetalleError.de("urlDemo", demo, "debe_ser_https"));
-        }
+        String tituloLimpio = validarTitulo(titulo, fallos);
+        String descripcionLimpia = validarDescripcion(descripcion, fallos);
+        String resumenFinal = resolverResumen(resumen, descripcionLimpia, fallos);
+        Set<Short> stack = validarTecnologias(tecnologias, fallos);
+        String repo = urlHttpsOpcional(urlRepositorio, "urlRepositorio", fallos);
+        String demo = urlHttpsOpcional(urlDemo, "urlDemo", fallos);
 
         if (!fallos.isEmpty()) {
             throw new ExcepcionNegocio(CodigoErrorProyecto.PROYECTO_DATOS_INVALIDOS, fallos);
@@ -338,10 +299,78 @@ public class Proyecto {
                 descripcionLimpia,
                 resumenFinal,
                 stack,
-                repo.isEmpty() ? null : repo,
+                repo,
                 estadoProyecto == null ? EstadoProyecto.IDEA : estadoProyecto,
                 vacioANulo(licencia),
-                demo.isEmpty() ? null : demo);
+                demo);
+    }
+
+    // Cada regla agrega sus fallos a la lista comun en vez de lanzar: asi la respuesta
+    // informa de todos los campos invalidos de una vez, no del primero que encuentre.
+
+    private static String validarTitulo(String titulo, List<DetalleError> fallos) {
+        String limpio = recortar(titulo);
+        if (limpio.isEmpty()) {
+            fallos.add(DetalleError.de("titulo", "obligatorio"));
+        } else if (limpio.length() < TITULO_MIN || limpio.length() > TITULO_MAX) {
+            fallos.add(DetalleError.de("titulo", limpio.length(),
+                    "longitud_entre_" + TITULO_MIN + "_y_" + TITULO_MAX));
+        }
+        return limpio;
+    }
+
+    private static String validarDescripcion(String descripcion, List<DetalleError> fallos) {
+        String limpia = recortar(descripcion);
+        if (limpia.isEmpty()) {
+            fallos.add(DetalleError.de("descripcion", "obligatorio"));
+        } else if (limpia.length() < DESCRIPCION_MIN) {
+            fallos.add(DetalleError.de("descripcion", limpia.length(), "longitud_minima_" + DESCRIPCION_MIN));
+        }
+        return limpia;
+    }
+
+    /**
+     * El resumen no lo pide la HU, pero la columna es NOT NULL. Si no viene, se deriva
+     * de la descripcion en vez de rechazar la peticion por un campo que el usuario no
+     * sabe que existe.
+     */
+    private static String resolverResumen(String resumen, String descripcionLimpia, List<DetalleError> fallos) {
+        String limpio = recortar(resumen);
+        if (limpio.isEmpty() && !descripcionLimpia.isEmpty()) {
+            return descripcionLimpia.length() > RESUMEN_MAX
+                    ? descripcionLimpia.substring(0, RESUMEN_MAX - 3) + "..."
+                    : descripcionLimpia;
+        }
+        if (limpio.length() > RESUMEN_MAX) {
+            fallos.add(DetalleError.de("resumen", limpio.length(), "longitud_maxima_" + RESUMEN_MAX));
+        }
+        return limpio;
+    }
+
+    private static Set<Short> validarTecnologias(Set<Short> tecnologias, List<DetalleError> fallos) {
+        Set<Short> stack = tecnologias == null ? Set.of() : new LinkedHashSet<>(tecnologias);
+        if (stack.size() < TECNOLOGIAS_MIN || stack.size() > TECNOLOGIAS_MAX) {
+            fallos.add(DetalleError.de("tecnologias", stack.size(),
+                    "entre_" + TECNOLOGIAS_MIN + "_y_" + TECNOLOGIAS_MAX));
+        }
+        return stack;
+    }
+
+    /**
+     * Un enlace opcional: ausente es valido, presente tiene que ser https. http
+     * permitiria degradar la conexion de quien siga el enlace.
+     *
+     * @return el enlace limpio, o {@code null} si no vino
+     */
+    private static String urlHttpsOpcional(String valor, String campo, List<DetalleError> fallos) {
+        String limpio = recortar(valor);
+        if (limpio.isEmpty()) {
+            return null;
+        }
+        if (!limpio.toLowerCase().startsWith("https://")) {
+            fallos.add(DetalleError.de(campo, limpio, "debe_ser_https"));
+        }
+        return limpio;
     }
 
     /** Contenido ya validado y normalizado. Solo existe dentro de esta clase. */

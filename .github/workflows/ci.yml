@@ -13,7 +13,12 @@
 #    verificar   En TODO pull request y push a develop/main. Compila y ejecuta
 #                ./mvnw verify: pruebas unitarias, reglas de arquitectura
 #                (ArchUnit) y pruebas de integracion contra PostgreSQL real
-#                (Testcontainers). Si falla, el PR no deberia integrarse.
+#                (Testcontainers). Tambien mide la cobertura con JaCoCo y
+#                falla si baja del 65 % (RNF-05). Si falla, el PR no deberia
+#                integrarse.
+#    calidad     En TODO pull request y push a develop/main, si verificar paso.
+#                Sube el analisis a SonarCloud y espera el veredicto del Quality
+#                Gate (RNF-05): si no pasa, el job falla y bloquea el PR.
 #    imagen      Solo en push a main, y solo si verificar paso. Construye la
 #                imagen Docker y la publica en ghcr.io etiquetada con el commit:
 #                artefacto versionado e inmutable (§7.2, Empaquetado).
@@ -21,7 +26,6 @@
 #                de Render: produccion solo recibe codigo que paso el pipeline.
 #
 #  Lo que NO hace todavia, a proposito (es del sprint 3 o de otro curso):
-#  analisis con SonarCloud y umbral de cobertura (Calidad de Software),
 #  metricas con Prometheus/Grafana y orquestacion de contenedores.
 # =============================================================================
 
@@ -84,9 +88,70 @@ jobs:
             target/failsafe-reports/
           retention-days: 7
 
+      # Lo que necesita SonarCloud para no repetir la compilacion ni las pruebas:
+      # los .class (analisis de bytecode) y el informe de cobertura de JaCoCo,
+      # que ya suma unitarias e integracion.
+      - name: Guardar compilacion y cobertura para SonarCloud
+        uses: actions/upload-artifact@v4
+        with:
+          name: compilacion
+          path: |
+            target/classes/
+            target/test-classes/
+            target/site/jacoco/jacoco.xml
+          retention-days: 1
+
+  calidad:
+    name: Quality Gate SonarCloud
+    needs: verificar
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # Historial completo: SonarCloud lo usa (git blame) para saber que lineas
+      # son codigo nuevo, que es sobre lo que el Quality Gate pone las condiciones.
+      - name: Obtener el codigo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preparar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Recuperar compilacion y cobertura
+        uses: actions/download-artifact@v4
+        with:
+          name: compilacion
+          path: target/
+
+      - name: Cache de SonarCloud
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      # Solo el goal sonar, sin fases: no recompila ni vuelve a correr pruebas.
+      # qualitygate.wait hace que el job espere el veredicto y falle si el
+      # Quality Gate no pasa; sin eso el job terminaria en verde siempre.
+      # El token vive en GitHub Secrets y nunca en el repositorio (lineamiento 7.3).
+      - name: Analizar y esperar el Quality Gate
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::error::Falta el secreto SONAR_TOKEN en el repositorio. Ver docs/ci-cd.md."
+            exit 1
+          fi
+          ./mvnw -B sonar:sonar -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300
+
   imagen:
     name: Publicar imagen Docker
-    needs: verificar
+    needs: [verificar, calidad]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20

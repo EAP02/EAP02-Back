@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 /**
@@ -24,8 +25,9 @@ class PoliticaPerfilTest {
     @Test
     @DisplayName("permite cuando el autenticado es el titular")
     void permite_al_titular() {
-        // Act + Assert: no lanza
-        PoliticaPerfil.exigirTitular(TITULAR, TITULAR);
+        // Act + Assert
+        assertThatCode(() -> PoliticaPerfil.exigirTitular(TITULAR, TITULAR))
+                .doesNotThrowAnyException();
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.codefactory.devnet.profile.infrastructure;
 import com.codefactory.devnet.profile.domain.Perfil;
 import com.codefactory.devnet.profile.domain.RepositorioPerfiles;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,12 +27,16 @@ public class RepositorioPerfilesJpa implements RepositorioPerfiles {
      * ataria los dos modulos por su infraestructura, que es justo lo que ADR-001
      * prohibe. El catalogo es una tabla de referencia compartida, no una entidad del
      * modulo de proyectos; leerla por SQL no crea acoplamiento de codigo.</p>
+     *
+     * <p>Con parametros con nombre porque las consultas usan {@code IN} de tamano
+     * variable: {@code IN (:ids)} lo expande el propio Spring y el SQL queda
+     * constante, sin construir marcadores a mano (lineamiento 5.3).</p>
      */
-    private final JdbcTemplate jdbc;
+    private final NamedParameterJdbcTemplate jdbc;
 
     public RepositorioPerfilesJpa(PerfilJpaRepository jpa, JdbcTemplate jdbc) {
         this.jpa = jpa;
-        this.jdbc = jdbc;
+        this.jdbc = new NamedParameterJdbcTemplate(jdbc);
     }
 
     @Override
@@ -77,9 +82,9 @@ public class RepositorioPerfilesJpa implements RepositorioPerfiles {
         // Una sola consulta detecta a la vez identificadores inexistentes y
         // tecnologias que existen pero aun no estan aprobadas.
         Integer encontradas = jdbc.queryForObject(
-                "SELECT count(*) FROM tecnologia WHERE aprobada = true AND id IN (" + marcadores(ids) + ")",
-                Integer.class,
-                ids.toArray());
+                "SELECT count(*) FROM tecnologia WHERE aprobada = true AND id IN (:ids)",
+                Map.of("ids", ids),
+                Integer.class);
 
         return encontradas != null && encontradas == ids.size();
     }
@@ -92,25 +97,13 @@ public class RepositorioPerfilesJpa implements RepositorioPerfiles {
         }
         Map<Short, String> nombres = new HashMap<>();
         List<Map<String, Object>> filas = jdbc.queryForList(
-                "SELECT id, nombre FROM tecnologia WHERE id IN (" + marcadores(ids) + ")",
-                ids.toArray());
+                "SELECT id, nombre FROM tecnologia WHERE id IN (:ids)",
+                Map.of("ids", ids));
 
         for (Map<String, Object> fila : filas) {
             nombres.put(((Number) fila.get("id")).shortValue(), (String) fila.get("nombre"));
         }
         return nombres;
-    }
-
-    /**
-     * Genera {@code ?, ?, ?} para un {@code IN} de tamano variable.
-     *
-     * <p>Los valores siempre viajan como parametros, nunca concatenados: lo unico que
-     * se construye es el numero de marcadores, que sale del tamano de la coleccion y
-     * no de entrada del usuario. El lineamiento 5.3 lo exige: "nunca concatenar
-     * entrada del usuario en SQL".</p>
-     */
-    private String marcadores(Set<Short> ids) {
-        return String.join(",", java.util.Collections.nCopies(ids.size(), "?"));
     }
 
     private Perfil aDominio(PerfilEntity e) {
