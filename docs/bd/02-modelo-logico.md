@@ -29,6 +29,12 @@ sección.
 > y 12 se construyeron sobre tablas que ya existían, lo que confirma el diseño. Lo que cambió
 > es cómo se **usa** el modelo, y eso está en la sección
 > [Refinamiento del sprint 2](#refinamiento-del-sprint-2) al final del documento.
+>
+> **Refinamiento del sprint 3 (2026-11-13).** Las tablas siguen siendo 29. V6–V8 añadieron
+> permisos y la integridad de la mensajería; V9–V11 añaden los triggers, el procedimiento
+> almacenado, una columna (`auditoria.usuario_bd`) y una clave foránea compuesta
+> (`fk_comentario_padre_misma_publicacion`). Los diagramas de abajo ya los reflejan; el
+> porqué de cada uno está en [Refinamiento del sprint 3](#refinamiento-del-sprint-3).
 
 ---
 
@@ -335,7 +341,7 @@ erDiagram
         uuid id PK
         uuid publicacion_id FK
         uuid autor_id FK
-        uuid comentario_padre_id FK "auto-referencia, nullable"
+        uuid comentario_padre_id FK "auto-referencia, nullable; misma publicacion (V9)"
         text contenido
         text estado "PUBLICADO|OCULTO|ELIMINADO"
         smallint profundidad "CHECK 0..5"
@@ -380,7 +386,7 @@ erDiagram
     MENSAJE {
         uuid id PK
         uuid conversacion_id FK
-        uuid remitente_id FK
+        uuid remitente_id FK "participante de la conversacion (V8)"
         text contenido
         timestamptz enviado_en
         timestamptz editado_en "nullable"
@@ -437,13 +443,14 @@ erDiagram
     AUDITORIA {
         bigint id PK
         text tabla
-        text operacion "INSERT|UPDATE|DELETE"
+        text operacion "INSERT|UPDATE|DELETE + eventos de seguridad (V2, V5, V8)"
         text registro_id
         uuid actor_id "nullable"
         jsonb datos_antes
         jsonb datos_despues
         text trace_id "une con los logs de la aplicación"
         inet ip
+        text usuario_bd "rol de BD que originó el evento (V10)"
         timestamptz creado_en
     }
     METRICAS_DIARIAS {
@@ -471,6 +478,10 @@ Notas de diseño:
   transversal, no una relación del modelo.
 - **`auditoria.trace_id`** es lo que une un cambio en la base con una línea de log y con la
   respuesta que recibió el cliente. Ver [ADR-005](../adr/ADR-005-contrato-errores-traceid.md).
+- **`auditoria` tiene dos escritores, sin solaparse** (sprint 3). La aplicación registra lo
+  que pasa por la API, con `actor_id` y `trace_id`. Los triggers de V10 registran los
+  cambios que no pasan por ella (roles, permisos, suspensiones, estado y MFA del usuario), y
+  `usuario_bd` dice quién los hizo cuando no hay `actor_id`.
 - **`metricas_diarias` es la única tabla no normalizada del modelo**, y a propósito: es una
   tabla de hechos preagregada, escrita por `sp_consolidar_metricas_diarias` y leída por los
   reportes. Separa el camino analítico del transaccional, que es lo que hace alcanzable el
@@ -544,6 +555,8 @@ invariante del discriminador ya no lo protege un solo punto de código. Mitigaci
 cada escritor inserta supertipo y subtipo en una sola transacción, y la consulta de
 integridad I2 debe devolver cero filas. Candidata para el sprint 3: un *trigger* de
 integridad que lo garantice en la propia base (§5.4: *«apropiados para integridad»*).
+**→ Resuelto en V9** (`tg_proyecto_tipo_coherente`, `tg_discusion_tipo_coherente`,
+`tg_publicacion_tipo_inmutable`).
 
 **2. Nada impide que una respuesta cuelgue de un comentario de otra publicación.**
 `comentario.comentario_padre_id` referencia a `comentario(id)`, pero ninguna restricción
@@ -562,7 +575,9 @@ ALTER TABLE comentario ADD CONSTRAINT fk_comentario_padre_misma_publicacion
 ```
 
 Va con la HU que empiece a escribir comentarios, no antes: es entonces cuando hay datos que
-proteger y pruebas que lo demuestren.
+proteger y pruebas que lo demuestren. **→ Resuelto en V9.** HU-13 empezó a escribir
+comentarios en el sprint 2 sin incluirla; la FK compuesta llega en el sprint 3, todavía sin
+respuestas anidadas que la incumplan.
 
 **3. Eliminar es archivar.** HU-08 confirmó en la práctica la decisión del modelo: el
 estado `ARCHIVADO` y el historial bastaron para «eliminar» un proyecto sin borrar filas, y
@@ -573,15 +588,84 @@ estado `EN_REVISION` sigue sin uso.
 y con índice GIN desde V1, sirvió tal cual para HU-09, y quedó medida en
 [04-indices.md](04-indices.md).
 
+## Refinamiento del sprint 3
+
+§3.7 pide para el sprint 3 *«MER y script refinados, triggers y procedimientos coherentes
+con las HU, actualización del análisis de volumen»*. §5.4 pone la condición: triggers y
+procedimientos son apropiados *«para integridad, auditoría o procesamiento cercano a los
+datos»* y *«no deben duplicar reglas sin una fuente de verdad definida ni crear
+acoplamiento oculto entre módulos»*. Cada objeto nuevo se justifica con esas dos frases.
+
+### Qué historia usa cada tabla, al cierre del sprint 3
+
+Solo las filas que cambiaron respecto del sprint 2:
+
+| Tabla | Escribe | Lee | Estado |
+|---|---|---|---|
+| `comentario` | HU-13 (comentar, eliminar) | HU-11, HU-13 | **En uso** (antes: leída, no escrita) |
+| `reaccion_publicacion` | HU-14 | HU-14 | En uso desde el sprint 2 |
+| `seguimiento` | HU-15 | HU-15 | En uso desde el sprint 2 |
+| `conversacion`, `participante_conversacion`, `mensaje` | HU-17 | HU-18 | En uso desde el sprint 2 |
+| `auditoria` | La aplicación (HU-06, HU-08, HU-13, sesión, mensajería) **y los triggers de V10** | — (consulta P16 sin endpoint) | En uso |
+| `metricas_diarias` | `sp_consolidar_metricas_diarias` (V11) | P13–P15; base de HU-19 | **En uso** (antes: sin implementación) |
+| `suspension`, `usuario_rol`, `rol_permiso` | Consola SQL (no hay endpoint) | HU-06 | Auditadas por trigger desde V10 |
+| `colaboracion`, `reaccion_comentario`, `evento_reputacion`, `reporte_moderacion`, `identidad_externa` | — | — | Modeladas, sin implementación |
+
+### Triggers y procedimiento
+
+| Objeto | Migración | Tipo (§5.4) | Historia | Única fuente de verdad |
+|---|---|---|---|---|
+| `tg_comentario_contador` | V9 | Integridad de una desnormalización | HU-13 | La base: nadie más toca `contador_comentarios` |
+| `tg_publicacion_actualizado` (recreado) | V9 | Metadatos | HU-08, HU-13, HU-14 | — |
+| `tg_proyecto_tipo_coherente`, `tg_discusion_tipo_coherente`, `tg_publicacion_tipo_inmutable` | V9 | Integridad | HU-07, HU-11 | La base: la tabla tiene dos escritores (ADR-006) |
+| `fk_comentario_padre_misma_publicacion` | V9 | Integridad (restricción, no trigger) | HU-13, P02 | La base |
+| `tg_auditar_usuario_rol`, `tg_auditar_rol_permiso`, `tg_auditar_suspension`, `tg_auditar_usuario` | V10 | Auditoría | HU-06, HU-03 | La base, para lo que **no** pasa por la API |
+| `sp_consolidar_metricas_diarias` | V11 | Procesamiento cercano a los datos | Base de HU-19; P13–P15 | La base: agrega tablas de cinco módulos sin acoplarlos |
+
+### Decisiones
+
+1. **`contador_reacciones` no pasa a trigger.** Lo mantiene `RepositorioReaccionesJdbc`
+   (HU-14) desde el sprint 2. Un trigger además de la aplicación lo contaría dos veces, y
+   moverlo exigiría cambiar código ya probado. Queda una sola fuente por contador: la
+   aplicación para reacciones, la base para comentarios. El comentario de cabecera de V9 lo
+   deja escrito para que nadie añada la segunda. (El javadoc de `RepositorioReaccionesJdbc`
+   dice todavía «la base aún no tiene triggers de contadores»; conviene que su autor lo
+   actualice a «el de reacciones lo mantiene este adaptador por decisión, ver V9».)
+2. **La auditoría por trigger no cubre `publicacion` ni `comentario`.** La aplicación ya
+   audita su edición, archivado y borrado con `actor_id` y `trace_id`, que un trigger no
+   conoce. Duplicarlo daría dos filas por cambio, una de ellas sin actor.
+3. **Contar no es editar.** Antes de V9, cada reacción movía `publicacion.actualizado_en`.
+   `fn_publicacion_actualizado` compara la fila sin contadores; la comparación va dentro de
+   la función porque PostgreSQL no admite que el `WHEN` de un trigger `BEFORE` lea `NEW`
+   entero en una tabla con columna generada.
+4. **De `usuario` solo se audita `estado` y `mfa_habilitado`.** Cada inicio de sesión
+   actualiza `intentos_fallidos` y `ultimo_acceso_en`: auditarlo inundaría la tabla con
+   algo que la aplicación ya registra como evento de seguridad. Y el trigger guarda solo
+   `id`, `estado` y `mfa_habilitado`: nunca correo, nombre, hash ni secreto (§5.3).
+5. **`auditoria.usuario_bd` es nullable.** Con `ADD COLUMN ... DEFAULT current_user` las
+   filas históricas habrían quedado marcadas con el usuario de la migración, que es falso.
+   `NULL` se lee «anterior a V10».
+6. **El procedimiento usa días de `America/Bogota`.** Un día UTC empieza a las 7 p. m. en
+   Colombia y partiría la actividad de una tarde en dos fechas.
+7. **Usuario activo** = inició o renovó sesión (eventos de `auditoria`), o publicó, comentó,
+   reaccionó o envió un mensaje ese día. **Reportes abiertos** = creados ese día, no los
+   pendientes al calcular: una métrica diaria no puede depender de cuándo se calcula.
+8. **Nadie programa el procedimiento todavía.** Programarlo en la aplicación sería código
+   del módulo `analytics`, que pertenece a HU-19; `pg_cron` no existe en el PostgreSQL de
+   las pruebas ni en el local. Se ejecuta con `CALL` (ver [README](README.md#procedimiento-almacenado)).
+9. **No se crean triggers sin historia que los alimente:** ni `evento_reputacion` →
+   `perfil.reputacion` ni `comentario.contador_reacciones`. Ninguna HU escribe hoy esas
+   tablas.
+
 ## Siguiente paso por sprint
 
 | Sprint | Entregable de Bases de Datos | Estado |
 |---|---|---|
 | 1 | Entidades y relaciones, consultas clave, modelo lógico, modelo físico inicial | **Completo** |
 | 2 | MER refinado, modelo físico completo con claves y restricciones, script de estructuras, consultas de los dos primeros sprints, estimación de volumen, roles y esquema de seguridad | Refinamiento y trazabilidad arriba; consultas del sprint 2 en `05-consultas-no-triviales.sql`; mediciones con datos representativos en `04-indices.md`; roles de `db-roles.sql` **aplicados en producción** (14/10/2026) |
-| 3 | MER y script refinados, triggers y procedimientos coherentes con las HU, actualización del análisis de volumen | `V3`: triggers de auditoría y de contadores, `sp_consolidar_metricas_diarias` |
+| 3 | MER y script refinados, triggers y procedimientos coherentes con las HU, actualización del análisis de volumen | **Completo:** V9 (contador e integridad), V10 (auditoría por triggers), V11 (`sp_consolidar_metricas_diarias`); MER y trazabilidad arriba; volumen actualizado en [01-consultas-clave.md](01-consultas-clave.md#actualización-del-sprint-3) y mediciones en [04-indices.md](04-indices.md#mediciones-del-sprint-3) |
 
-Los triggers y el procedimiento almacenado se dejan deliberadamente para el sprint 3
+Los triggers y el procedimiento almacenado se dejaron deliberadamente para el sprint 3
 porque así lo pide el cronograma de §3.7, y porque para entonces las historias de usuario
-que justifican cada uno ya estarán implementadas. Un procedimiento escrito antes de la
-historia que lo necesita es una suposición.
+que justifican cada uno ya estaban implementadas. Se anunciaban como «V3»; llegaron como
+V9–V11 porque V3–V8 se usaron antes para otros cambios.

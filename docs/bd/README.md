@@ -8,16 +8,16 @@ Documentación del curso de **Bases de Datos**. Las decisiones que la sostienen 
 
 | Archivo | Qué es | Entregable |
 |---|---|---|
-| [01-consultas-clave.md](01-consultas-clave.md) | Preguntas de negocio por actor, correspondencia con el caso, estimación de volumen | Sprint 1 (literal) |
-| [02-modelo-logico.md](02-modelo-logico.md) | MER en cinco vistas, decisiones de modelado, análisis de normalización | Sprint 1 (literal) |
-| [03-diccionario-datos.md](03-diccionario-datos.md) | Inventario de las 29 tablas, consultas para generar el diccionario, clasificación de datos | Sprint 1–2 |
-| [04-indices.md](04-indices.md) | Justificación de cada índice, costo de escritura, procedimiento de verificación | Sprint 2 |
+| [01-consultas-clave.md](01-consultas-clave.md) | Preguntas de negocio por actor, correspondencia con el caso, estimación de volumen y su actualización | Sprint 1 (literal), volumen actualizado en el sprint 3 |
+| [02-modelo-logico.md](02-modelo-logico.md) | MER en cinco vistas, decisiones de modelado, normalización, refinamientos y trazabilidad HU→tabla de los sprints 2 y 3 | Sprint 1–3 |
+| [03-diccionario-datos.md](03-diccionario-datos.md) | Inventario de las 29 tablas, consultas para generar el diccionario, triggers y procedimiento, clasificación de datos | Sprint 1–3 |
+| [04-indices.md](04-indices.md) | Justificación de cada índice, costo de escritura, procedimiento de verificación, mediciones de los sprints 2 y 3 | Sprint 2–3 |
 | [05-consultas-no-triviales.sql](05-consultas-no-triviales.sql) | Las nueve consultas clave, ejecutables, más tres verificaciones de integridad | Sprint 2 |
 | [db-roles.sql](db-roles.sql) | Roles de base de datos y privilegios mínimos, con el procedimiento para aplicarlos | Sprint 2 |
-| [datos-representativos.sql](datos-representativos.sql) | Carga los volúmenes de la proyección a un año, con distribuciones sesgadas, para medir | Sprint 2 |
+| [datos-representativos.sql](datos-representativos.sql) | Carga los volúmenes de la proyección a un año, con distribuciones sesgadas, para medir. Desde el sprint 3 incluye reacciones y auditoría, y calcula las métricas con el procedimiento | Sprint 2–3 |
 | [medicion-planes.sql](medicion-planes.sql) | Mide p50/p95 e índices usados de las consultas clave y de las del sprint 2 | Sprint 2 |
 | [verificacion-instalacion.sql](verificacion-instalacion.sql) | Comprobaciones post-instalación con sus valores esperados | Sprint 2 |
-| [`db/migration/`](../../src/main/resources/db/migration/) | **Modelo físico** (V1 a V5) | Sprint 1 (literal) |
+| [`db/migration/`](../../src/main/resources/db/migration/) | **Modelo físico** (V1 a V11) | Sprint 1–3 |
 
 ## El modelo físico es la carpeta de migraciones
 
@@ -39,6 +39,13 @@ esté defendiendo un diagrama que no corresponde a la base real.
 | `V4__unificar_habilidades_en_perfil_tecnologia.sql` | Migra lo rescatable de `perfil_habilidad` a `perfil_tecnologia` y **elimina** `perfil_habilidad`; añade `ix_perfil_tecnologia_inverso` | Duplicidad semántica (§5.1). Con texto libre, `React`, `ReactJS` y `react.js` son tres tecnologías distintas y el reporte de tecnologías más discutidas deja de significar nada |
 | `V5__eventos_de_refresco_en_auditoria.sql` | Añade `REFRESCO_ROTADO`, `REFRESCO_REUSADO` y `CIERRE_SESION`; recrea `ix_auditoria_seguridad` incluyendo el reuso | Sin esto el `INSERT` violaría el CHECK y el adaptador de auditoría se lo traga con un `log.error`: el evento de seguridad más importante del sistema se perdería en silencio (ADR-004) |
 
+| `V6__permiso_eliminar_comentarios_ajenos.sql` | Permiso `comentario:eliminar-ajeno`, solo para `ADMIN` | HU-13, criterio 4: los administradores pueden eliminar comentarios |
+| `V7__permiso_seguir_usuarios.sql` | Permiso `usuario:seguir` para `DESARROLLADOR` y `MODERADOR` | HU-15. Seguir a alguien no edita ningún perfil: necesita su propio permiso |
+| `V8__integridad_y_auditoria_mensajeria.sql` | FK `(conversacion_id, remitente_id)` → participante; evento `MENSAJE_ENVIADO` en auditoría | HU-17: un mensaje solo lo envía un participante de su conversación |
+| `V9__contador_comentarios_e_integridad.sql` | Trigger del contador de comentarios (y recálculo de los existentes); `tg_publicacion_actualizado` ya no se mueve por contadores; triggers de integridad supertipo/subtipo; FK `fk_comentario_padre_misma_publicacion` | Sprint 3 (§3.7). `contador_comentarios` existía desde V1 y nadie lo mantenía; `publicacion` tiene dos módulos escritores; P02 depende del hilo dentro de una publicación |
+| `V10__auditoria_por_triggers.sql` | `fn_auditar_cambio()` y triggers en `usuario_rol`, `rol_permiso`, `suspension` y `usuario` (solo estado y MFA); columna `auditoria.usuario_bd` | Sprint 3 (§3.2, §5.4). Lo que no pasa por la API —roles, permisos, sanciones— solo lo puede auditar la base |
+| `V11__procedimiento_metricas_diarias.sql` | `sp_consolidar_metricas_diarias(p_desde, p_hasta)` | Sprint 3 (§3.2: al menos un procedimiento almacenado). Llena `metricas_diarias`, que existía vacía desde V1 |
+
 `V4` es la única destructiva. Migra solo las habilidades que coinciden con una tecnología
 aprobada del catálogo, comparando sin distinguir mayúsculas contra el nombre o el *slug*;
 **el resto se pierde a propósito**, porque era texto libre sin equivalencia e inventarle
@@ -59,12 +66,39 @@ Es el orden en que se construyó, y el que hace que cada decisión se entienda:
 | Sprint | Pendiente |
 |---|---|
 | 2 | ~~Poblar con datos representativos y completar el registro de mediciones~~ **Hecho**: ver [04-indices.md](04-indices.md#registro-de-mediciones). Roles de `db-roles.sql` **aplicados en producción** el 14/10/2026 |
-| 3 | `V3`: triggers de auditoría sobre tablas críticas, triggers de mantenimiento de contadores, y el procedimiento almacenado `sp_consolidar_metricas_diarias`. Actualizar el análisis de volumen |
+| 3 | ~~Triggers de auditoría y de contadores, `sp_consolidar_metricas_diarias`, actualización del análisis de volumen~~ **Hecho** (13/11/2026): V9, V10 y V11; volumen en [01-consultas-clave.md](01-consultas-clave.md#actualización-del-sprint-3), mediciones en [04-indices.md](04-indices.md#mediciones-del-sprint-3). Se anunciaban como «V3»; llegaron como V9–V11 porque V3–V8 se usaron antes |
 
-Los triggers y el procedimiento se dejan para el sprint 3 porque así lo pide el cronograma
+Los triggers y el procedimiento se dejaron para el sprint 3 porque así lo pide el cronograma
 de §3.7 ("triggers y procedimientos **coherentes con las HU**"), y porque para entonces las
-historias que los justifican ya estarán implementadas. Un procedimiento escrito antes de la
-historia que lo necesita es una suposición, no un diseño.
+historias que los justifican ya estaban implementadas. Un procedimiento escrito antes de la
+historia que lo necesita es una suposición, no un diseño. La justificación de cada objeto
+está en [02-modelo-logico.md](02-modelo-logico.md#refinamiento-del-sprint-3).
+
+## Procedimiento almacenado
+
+`sp_consolidar_metricas_diarias` llena `metricas_diarias`, la tabla de hechos de los
+reportes de crecimiento (P13–P15 y la futura HU-19). Es idempotente: recalcula y reemplaza.
+
+```sql
+CALL sp_consolidar_metricas_diarias();                            -- ayer (America/Bogota)
+CALL sp_consolidar_metricas_diarias('2026-11-01');                -- un día
+CALL sp_consolidar_metricas_diarias('2026-10-01', '2026-11-12');  -- rango (backfill)
+SELECT * FROM metricas_diarias ORDER BY fecha DESC LIMIT 7;
+```
+
+**Quién lo ejecuta.** Hoy, a mano. Programarlo es decisión de quien implemente HU-19:
+
+- **En la aplicación**, con una tarea `@Scheduled` en el módulo `analytics` que haga
+  `CALL sp_consolidar_metricas_diarias()`. `devnet_app` ya tiene `EXECUTE` por los
+  privilegios por defecto de [`db-roles.sql`](db-roles.sql).
+- **En Supabase**, activando la extensión `pg_cron` desde el panel (Database → Extensions) y
+  programando, como `postgres`:
+  `SELECT cron.schedule('metricas-diarias', '15 5 * * *', 'CALL sp_consolidar_metricas_diarias()');`
+  (05:15 UTC = 00:15 en Colombia). No va en una migración porque `pg_cron` no existe en el
+  PostgreSQL de las pruebas ni en el local.
+
+Con un año de datos tarda unos **0,2 s por día** consolidado (ver
+[04-indices.md](04-indices.md#mediciones-del-sprint-3)).
 
 ## Roles de base de datos: aplicados en producción
 

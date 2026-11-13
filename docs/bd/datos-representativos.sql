@@ -20,7 +20,8 @@
 --  se une por igualdad.
 --
 --  NUNCA EJECUTAR EN PRODUCCION. Es para una base local o de integracion vacia,
---  despues de aplicar las migraciones V1 a V5:
+--  despues de aplicar las migraciones V1 a V11 (los triggers de V9 y V10 actuan
+--  durante la carga, que es parte de lo que se mide):
 --
 --      podman/docker exec -i <contenedor> psql -U postgres -d devnet < datos-representativos.sql
 --
@@ -215,12 +216,58 @@ JOIN u rep   ON rep.n = s.nrep
 JOIN u mod   ON mod.n = s.nmod;
 
 -- ----------------------------------------------------------------------------
--- 6. Metricas diarias: un año
+-- 6. Reacciones a publicaciones: 600 000 (sprint 3, HU-14)
+--    La tabla que mas crece segun la proyeccion. Sesgadas como los comentarios:
+--    pocas publicaciones concentran la mayoria. Una por usuario y publicacion
+--    (clave primaria), asi que se generan pares y se descartan duplicados.
+--    El contador lo mantiene la aplicacion (decision D1 del sprint 3), asi que
+--    aqui se recalcula al final, como lo dejaria la API.
 -- ----------------------------------------------------------------------------
-INSERT INTO metricas_diarias (fecha, usuarios_nuevos, usuarios_activos, publicaciones_nuevas, comentarios_nuevos, mensajes_enviados)
-SELECT d::date, floor(random() * 30)::int, 200 + floor(random() * 400)::int,
-       floor(random() * 150)::int, floor(random() * 900)::int, floor(random() * 1500)::int
-FROM generate_series(current_date - 364, current_date, interval '1 day') d;
+INSERT INTO reaccion_publicacion (usuario_id, publicacion_id, tipo, creado_en)
+SELECT DISTINCT ON (u.id, p.id)
+       u.id, p.id,
+       (ARRAY['ME_GUSTA','UTIL','INNOVADOR'])[1 + floor(random() * 3)::int],
+       p.publicado_en + (random() * interval '60 days')
+FROM (SELECT 1 + floor(power(random(), 3) * 40000)::int AS np,
+             1 + floor(random() * 5000)::int AS nu
+      FROM generate_series(1, 640000)) s
+JOIN p ON p.n = s.np
+JOIN u ON u.n = s.nu;
+
+UPDATE publicacion pu SET contador_reacciones = r.total
+FROM (SELECT publicacion_id, count(*) AS total FROM reaccion_publicacion GROUP BY publicacion_id) r
+WHERE pu.id = r.publicacion_id;
+
+-- ----------------------------------------------------------------------------
+-- 7. Auditoria: 500 000 eventos de un año (sprint 3)
+--    Lo que la aplicacion escribe de verdad: sobre todo inicios y renovaciones
+--    de sesion, algo de fallos y accesos denegados. Se suman a las filas que
+--    los triggers de V10 ya dejaron al cargar usuario_rol.
+-- ----------------------------------------------------------------------------
+INSERT INTO auditoria (tabla, operacion, registro_id, actor_id, trace_id, ip, creado_en)
+SELECT CASE WHEN op LIKE 'REFRESCO%' THEN 'token_refresco' ELSE 'usuario' END,
+       op, u.id::text, u.id,
+       substr(md5(g::text), 1, 16), '10.0.0.1'::inet,
+       now() - (random() * interval '365 days')
+FROM (SELECT g,
+             1 + floor(power(random(), 2) * 5000)::int AS nu,
+             CASE WHEN r < 0.45 THEN 'INICIO_SESION'
+                  WHEN r < 0.90 THEN 'REFRESCO_ROTADO'
+                  WHEN r < 0.95 THEN 'CIERRE_SESION'
+                  WHEN r < 0.98 THEN 'INICIO_SESION_FALLIDO'
+                  ELSE 'ACCESO_DENEGADO' END AS op
+      FROM (SELECT g, random() AS r FROM generate_series(1, 500000) g) x) s
+JOIN u ON u.n = s.nu;
+
+-- ----------------------------------------------------------------------------
+-- 8. Metricas diarias: un año, calculadas por el procedimiento de V11
+--    Hasta el sprint 2 se llenaban con numeros al azar. Ahora las calcula
+--    sp_consolidar_metricas_diarias sobre los datos de arriba, y su tiempo es
+--    una de las mediciones del sprint 3 (docs/bd/04-indices.md).
+-- ----------------------------------------------------------------------------
+CALL sp_consolidar_metricas_diarias(
+    (now() AT TIME ZONE 'America/Bogota')::date - 365,
+    (now() AT TIME ZONE 'America/Bogota')::date - 1);
 
 -- Estadisticas al dia: sin ANALYZE el planificador decide con estimaciones vacias.
 ANALYZE;
@@ -232,4 +279,6 @@ UNION ALL SELECT 'comentario', count(*) FROM comentario
 UNION ALL SELECT 'mensaje', count(*) FROM mensaje
 UNION ALL SELECT 'seguimiento', count(*) FROM seguimiento
 UNION ALL SELECT 'reporte_moderacion', count(*) FROM reporte_moderacion
+UNION ALL SELECT 'reaccion_publicacion', count(*) FROM reaccion_publicacion
+UNION ALL SELECT 'auditoria', count(*) FROM auditoria
 UNION ALL SELECT 'metricas_diarias', count(*) FROM metricas_diarias;
