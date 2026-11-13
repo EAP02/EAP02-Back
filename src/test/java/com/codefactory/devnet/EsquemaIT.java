@@ -97,6 +97,34 @@ class EsquemaIT {
         assertThat(vector).isNotBlank().contains("plantill");
     }
 
+    @Test
+    @DisplayName("declara los triggers y el procedimiento del sprint 3 (V9, V10, V11)")
+    void declara_triggers_y_procedimiento() {
+        // §3.7, Bases de Datos sprint 3: "triggers y procedimientos coherentes con las HU".
+        List<String> triggers = jdbc.queryForList("""
+                SELECT DISTINCT trigger_name
+                FROM information_schema.triggers
+                WHERE trigger_schema = 'public'
+                """, String.class);
+
+        assertThat(triggers).contains(
+                "tg_comentario_contador",
+                "tg_publicacion_actualizado",
+                "tg_proyecto_tipo_coherente",
+                "tg_discusion_tipo_coherente",
+                "tg_publicacion_tipo_inmutable",
+                "tg_auditar_usuario_rol",
+                "tg_auditar_rol_permiso",
+                "tg_auditar_suspension",
+                "tg_auditar_usuario");
+
+        String tipo = jdbc.queryForObject("""
+                SELECT prokind::text FROM pg_proc WHERE proname = 'sp_consolidar_metricas_diarias'
+                """, String.class);
+        // 'p' = PROCEDURE (se invoca con CALL), no una funcion
+        assertThat(tipo).isEqualTo("p");
+    }
+
     private Integer contar(String tabla) {
         return jdbc.queryForObject("SELECT count(*) FROM " + tabla, Integer.class);
     }
