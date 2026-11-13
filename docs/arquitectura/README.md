@@ -47,7 +47,7 @@ Correspondencia con la tabla de §4.1 de los lineamientos:
 | Backend | Cuatro módulos de negocio —`identity`, `profile`, `project`, `discussion`— más el kernel `shared` y el cableado de arranque en `config` |
 | Base de datos transaccional | PostgreSQL 16 en Supabase |
 | Repositorio de recursos | *Previsto*: Supabase Storage. Hoy el avatar es una URL externa y no se almacenan binarios |
-| Observabilidad | Actuator (`/actuator/health`, usado por Render y el `HEALTHCHECK` del Dockerfile); `traceId` en el MDC de los logs, en la cabecera `X-Trace-Id` y en cada error (ADR-005). Prometheus/Grafana: *previsto*, sprint 3 |
+| Observabilidad | Actuator (`/actuator/health`, usado por Render y el `HEALTHCHECK` del Dockerfile); logs en JSON con `traceId`, `ruta`, `metodo`, `estadoHttp` y `duracionMs` como campos (HU-21); el mismo `traceId` en la cabecera `X-Trace-Id` y en cada error (ADR-005). Prometheus/Grafana: *previsto*, sprint 3 |
 | Plataforma DevOps | GitHub Actions: pruebas en cada PR, imagen en ghcr.io y despliegue en Render desde `main` ([ci-cd.md](../ci-cd.md)); backlog y métricas en Azure DevOps |
 
 La no adopción de API Gateway se documenta aquí a propósito: §4.1 lo condiciona a "cuando
