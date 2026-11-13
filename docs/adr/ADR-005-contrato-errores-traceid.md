@@ -108,9 +108,10 @@ Un `OncePerRequestFilter` en `shared`:
 3. Lo devuelve como cabecera `X-Trace-Id` en la respuesta.
 4. Lo limpia del MDC al terminar, incluso ante excepción.
 
-Todos los logs salen en JSON mediante `logstash-logback-encoder`, con `traceId`,
-`usuarioId` (cuando hay sesión), `metodo`, `ruta`, `estadoHttp` y `duracionMs` como campos
-de primer nivel. El mismo `traceId` se escribe en la columna `auditoria.trace_id`, de modo
+Todos los logs salen en JSON con `traceId`, `metodo`, `ruta`, `estadoHttp` y `duracionMs`
+como campos de primer nivel (implementado en HU-21; ver la
+[enmienda](#enmienda-2026-11-13-hu-21-logging-estructurado), que cambia la librería y deja
+fuera `usuarioId`). El mismo `traceId` se escribe en la columna `auditoria.trace_id`, de modo
 que un evento de auditoría en la base de datos, una línea de log y una respuesta de error
 al cliente se pueden unir por un solo valor. Esa unión es la trazabilidad operativa que
 pide §4.3.
@@ -141,7 +142,44 @@ pide §4.3.
   valida el esquema completo del cuerpo de error.
 - Prueba que confirma que `X-Trace-Id` viaja en toda respuesta y que el valor entrante se
   respeta cuando el cliente lo envía.
-- Prueba sobre el `appender` de logs que verifica ausencia de `password`, `token` y
-  `secret` en la salida.
+- Prueba sobre la salida de logs que verifica ausencia de contraseñas, tokens y datos
+  personales: `LoggingEstructuradoIT` (HU-21).
 - El contrato de error se declara una sola vez en OpenAPI y se referencia desde cada
   endpoint; el pipeline falla si un endpoint declara un esquema de error propio.
+
+## Enmienda 2026-11-13: HU-21 logging estructurado
+
+Al cierre del sprint 2 la correlación existía (MDC, cabecera, cuerpo de error y
+`auditoria.trace_id`), pero los logs salían en el texto por defecto de Spring y el patrón
+no imprimía el MDC (hallazgo H-21 de [`owasp-top-10.md`](../seguridad/owasp-top-10.md)).
+HU-21 · AB#122 lo cierra con tres desviaciones respecto de lo escrito arriba:
+
+1. **Formato nativo de Spring Boot en vez de `logstash-logback-encoder`.** Desde Boot 3.4
+   basta con `logging.structured.format.console: logstash` en `application.yml`: sin
+   dependencia nueva, sin `logback.xml` y con la misma forma de JSON plano (`@timestamp`,
+   `level`, `logger_name`, `message`, `stack_trace` y cada clave del MDC como campo). Una
+   librería menos que mantener y escanear (H-07).
+2. **`estadoHttp` y `duracionMs` van en una línea de cierre por petición** que escribe
+   `FiltroTraceId` (`"message":"Peticion atendida"`), como pares clave-valor de SLF4J. Así
+   hasta una petición que termina bien deja una línea con su `traceId`. Las rutas de
+   `/actuator` no la escriben: el health check de Render llamaría cada pocos segundos.
+3. **`usuarioId` no se añade al log.** El criterio 4 de HU-21 pide no registrar datos
+   personales innecesarios, y el dato ya existe donde hace falta: `auditoria.actor_id`,
+   unido al log por `auditoria.trace_id`. Ponerlo en el MDC exigiría además un segundo
+   filtro detrás de la cadena de seguridad.
+
+Medidas de criterio 4 que acompañan el cambio:
+
+- `ruta` usa `getRequestURI()`, que excluye la query string: los términos de búsqueda
+  (`?q=`) no llegan al log.
+- `spring.datasource.hikari.data-source-properties.logServerErrorDetail: false`: el driver
+  de PostgreSQL deja de copiar el `Detail` del servidor (p. ej. `Key (correo)=(…)`) en el
+  mensaje de la excepción que el manejador global registra con `log.error`.
+
+El JSON se activa en todos los perfiles para que las pruebas verifiquen lo mismo que corre
+en producción. En local se puede volver al texto sin tocar el repositorio con
+`LOGGING_STRUCTURED_FORMAT_CONSOLE=` (vacío).
+
+**Verificación:** `LoggingEstructuradoIT` (5 pruebas, criterios 1 a 4) y
+`FiltroTraceIdTest` (4 pruebas: traceId entrante válido, rechazo de inyección de líneas,
+unicidad y limpieza del MDC).
