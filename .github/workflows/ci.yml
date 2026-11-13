@@ -16,9 +16,10 @@
 #                (Testcontainers). Tambien mide la cobertura con JaCoCo y
 #                falla si baja del 65 % (RNF-05). Si falla, el PR no deberia
 #                integrarse.
-#    calidad     En TODO pull request y push a develop/main, si verificar paso.
+#    calidad     En TODO pull request y push a develop, si verificar paso.
 #                Sube el analisis a SonarCloud y espera el veredicto del Quality
 #                Gate (RNF-05): si no pasa, el job falla y bloquea el PR.
+#                NO corre en push a main: ver el comentario del job.
 #    imagen      Solo en push a main, y solo si verificar paso. Construye la
 #                imagen Docker y la publica en ghcr.io etiquetada con el commit:
 #                artefacto versionado e inmutable (§7.2, Empaquetado).
@@ -104,6 +105,16 @@ jobs:
   calidad:
     name: Quality Gate SonarCloud
     needs: verificar
+    # No se ejecuta en push a main. En SonarCloud la rama principal del proyecto
+    # es develop, y el plan gratuito de la organizacion no permite leer el Quality
+    # Gate de otra rama: el job fallaba con "Organization is not allowed to access
+    # data from non main branches" y bloqueaba imagen y despliegue (13/11/2026).
+    #
+    # No se pierde ningun control: main solo recibe merges de develop por PR, y ese
+    # mismo codigo ya paso el Quality Gate dos veces, en el push a develop y en el
+    # PR develop -> main (los PR se siguen analizando: su github.ref es
+    # refs/pull/N/merge, no refs/heads/main).
+    if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -152,7 +163,15 @@ jobs:
   imagen:
     name: Publicar imagen Docker
     needs: [verificar, calidad]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # En push a main 'calidad' queda omitido (skipped) a proposito. Por defecto
+    # GitHub omite tambien todo job que dependa de uno omitido, asi que la
+    # condicion se escribe entera: verificar tiene que haber pasado, y calidad
+    # tiene que haber pasado o haberse omitido; nunca haber fallado.
+    if: >-
+      !cancelled()
+      && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && needs.verificar.result == 'success'
+      && (needs.calidad.result == 'success' || needs.calidad.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -189,7 +208,13 @@ jobs:
   desplegar:
     name: Desplegar en Render
     needs: imagen
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # La regla de omision de GitHub es transitiva: con 'calidad' omitido, este job
+    # tambien se omitiria aunque 'imagen' pase. Se exige explicitamente que la
+    # imagen se haya publicado.
+    if: >-
+      !cancelled()
+      && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && needs.imagen.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     # El entorno 'produccion' de GitHub guarda el secreto del hook y deja
