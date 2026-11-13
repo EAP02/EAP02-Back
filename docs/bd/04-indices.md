@@ -68,13 +68,14 @@ Con esos dos, `V1__baseline.sql` declara **22 índices**, de los cuales 10 son p
 
 ### Índices posteriores a la V1
 
-El inventario de arriba es el de la migración inicial. Tres migraciones lo modifican:
+El inventario de arriba es el de la migración inicial. Cuatro migraciones lo modifican:
 
 | Índice | Migración | Tipo | Por qué |
 |---|---|---|---|
 | `ix_auditoria_seguridad` | V2, recreado en V5 | Parcial sobre `(operacion, creado_en DESC)` | Sirve la cola de «quién está tocando puertas cerradas». Parcial porque los eventos de seguridad son una minoría permanente frente a los cambios de datos, y solo se consultan entre ellos |
 | `ix_perfil_habilidad_usuario` | V3, **eliminado en V4** | — | Desapareció junto con su tabla |
 | `ix_perfil_tecnologia_inverso` | V4 | Total sobre `(tecnologia_id, usuario_id)` | No es redundante con la clave primaria: **es el otro sentido**. La PK `(usuario_id, tecnologia_id)` resuelve «qué declara este usuario»; este resuelve «quién sabe esta tecnología», que es la consulta detrás de buscar colaboradores por stack (P03) |
+| `ux_comentario_id_publicacion` | V9 | Único sobre `(id, publicacion_id)` | **No responde a una consulta: lo exige una restricción.** Una clave foránea compuesta necesita un `UNIQUE` en el destino, y `fk_comentario_padre_misma_publicacion` apunta a `(id, publicacion_id)`. Cuesta 21 MB con 250 000 comentarios y una entrada más por cada comentario nuevo; se acepta porque es el precio de que P02 sea correcta por construcción y no por disciplina |
 
 **V5 recrea `ix_auditoria_seguridad` en vez de añadir otro.** El `WHERE` de un índice
 parcial enumera los valores que sirve, así que un evento nuevo que no figure ahí queda
@@ -85,7 +86,11 @@ fuera del índice y su consulta vuelve a recorrer la tabla entera. Se le suma
 minutos por sesión activa. Incluirlo convertiría un índice parcial en uno casi total y
 encarecería la escritura sin que nadie consulte esa cola.
 
-Neto tras las cinco migraciones: **24 índices declarados, 11 de ellos parciales.**
+Neto tras las once migraciones: **24 índices creados con `CREATE INDEX`, 11 de ellos
+parciales**, más `ux_comentario_id_publicacion`, que no se crea con `CREATE INDEX` sino que
+respalda la restricción `UNIQUE` de V9 (como ya hacían tres restricciones `ux_` de V1). V6–V8,
+V10 y V11 no crean índices. [`verificacion-instalacion.sql`](verificacion-instalacion.sql)
+espera 28 nombres `ix_`/`ux_` y detalla la suma.
 `EsquemaIT` comprueba el recuento de parciales en cada ejecución, así que un índice
 parcial nuevo obliga a actualizar esa constante.
 
@@ -283,3 +288,88 @@ proyectada a un año se acercaría o superaría los **500 MB del plan gratuito d
 Es un dato para la actualización del análisis de volumen del sprint 3 (§3.7): la retención de
 `auditoria` y el particionamiento de `evento_reputacion`, que hoy figuran como «evaluados y
 no necesarios», pasan a ser candidatos reales en cuanto esas tablas empiecen a llenarse.
+
+---
+
+## Mediciones del sprint 3
+
+Medido el 13 de noviembre de 2026, con el mismo método del sprint 2 y las migraciones
+V1 a V11. [`datos-representativos.sql`](datos-representativos.sql) carga ahora también
+616 082 reacciones y 500 000 eventos de auditoría, y llena `metricas_diarias` llamando al
+procedimiento.
+
+### Las consultas clave no empeoraron
+
+[`medicion-planes.sql`](medicion-planes.sql), repetido sobre la base nueva:
+
+| Consulta | p95 sprint 2 | p95 sprint 3 | Plan |
+|---|---|---|---|
+| P01 feed | 12,53 ms | 10,63 ms | Igual |
+| P02 hilo | 0,31 ms | 0,28 ms | Igual (`ix_comentario_publicacion_padre`) |
+| P04 búsqueda con relevancia | 6,80 ms | 4,63 ms | Igual |
+| P05 bandeja | 0,52 ms | 0,49 ms | Igual |
+| P09 cola | 1,31 ms | 0,99 ms | Igual (secuencial sobre `reporte_moderacion`) |
+| P13 crecimiento 90 días | 0,23 ms | 0,23 ms | Igual |
+| HU-07, HU-09, HU-11, HU-12 | ≤ 1,33 ms | ≤ 0,94 ms | Igual |
+
+Las diferencias son ruido de la máquina; ningún plan cambió. Los triggers no intervienen en
+lecturas y la nueva FK de `comentario` no altera el plan de P02.
+
+### Costo del trigger de contador (`tg_comentario_contador`)
+
+| Escenario | Con trigger | Sin trigger | Diferencia |
+|---|---|---|---|
+| 50 000 comentarios en una sentencia (carga masiva, sesgada hacia publicaciones populares) | 7,07 s | 1,76 s | ~0,1 ms por fila |
+| Un comentario aislado, como lo crea la API (5 muestras) | 0,38–1,02 ms en total | — | Imperceptible |
+
+En una carga masiva el trigger cuadruplica el tiempo, porque cada fila actualiza la de su
+publicación y las publicaciones populares reciben miles de actualizaciones seguidas. En el
+uso real (un comentario por petición) es despreciable frente al presupuesto de la API. Para
+una carga masiva futura: `ALTER TABLE comentario DISABLE TRIGGER tg_comentario_contador`,
+cargar, recalcular con el `UPDATE` de V9 y volver a habilitarlo.
+
+Tras la carga, la consulta de integridad del contador
+(`05-consultas-no-triviales.sql`, I3) devolvió **cero** publicaciones descuadradas.
+
+### Costo del procedimiento (`sp_consolidar_metricas_diarias`)
+
+| Escenario | Tiempo |
+|---|---|
+| Un día (el uso diario), 5 días distintos | 198–215 ms |
+| Un año completo (backfill de 365 días) | 71,8 s |
+
+Desglose de un día: cada subconsulta recorre su tabla en secuencial (paralelo), porque
+ninguna columna de fecha de esas tablas está indexada para este fin.
+
+| Tabla | Plan | Tiempo |
+|---|---|---|
+| `reaccion_publicacion` | Parallel Seq Scan | 48 ms |
+| `auditoria` | Parallel Seq Scan | 47 ms |
+| `mensaje` | Parallel Seq Scan | 34 ms |
+| `publicacion` | Seq Scan | 29 ms |
+| `comentario` | Parallel Seq Scan | 26 ms |
+| `usuario` | Seq Scan | 1 ms |
+
+**Decisión: no se crean índices para el procedimiento.** Se ejecuta una vez al día y tarda
+0,2 s; un índice por columna de fecha en las cuatro tablas que más se escriben encarecería
+cada comentario, reacción, mensaje y evento de auditoría para ahorrar 0,2 s diarios (§5.3:
+*«validar su costo de escritura»*). El costo crece linealmente con el tamaño de las tablas:
+con diez veces más datos serían unos 2 s por día, aún aceptable. Si algún día no lo fuera,
+la opción indicada es un índice **BRIN** sobre la columna de fecha: estas tablas son de solo
+inserción y en orden cronológico, y un BRIN ocupa kilobytes y casi no encarece la escritura.
+
+### Tamaño en disco, sprint 3
+
+| Tabla | Filas | Total | De ello, índices |
+|---|---|---|---|
+| `auditoria` | 505 000 | 180 MB | 93 MB (`ix_auditoria_registro` 56 MB, `ix_auditoria_trace` 25 MB) |
+| `comentario` | 250 000 | 103 MB | 55 MB |
+| `mensaje` | 400 000 | 81 MB | 37 MB |
+| `reaccion_publicacion` | 616 082 | 77 MB | 29 MB |
+| `publicacion` | 40 000 | 27 MB tras `VACUUM FULL` (127 MB antes) | 17 MB |
+| **Base completa** | | **535 MB** compactada | |
+
+Las conclusiones (Supabase gratuito superado, retención de `auditoria`, tuplas muertas por
+los contadores) están en
+[01-consultas-clave.md](01-consultas-clave.md#actualización-del-sprint-3).
+

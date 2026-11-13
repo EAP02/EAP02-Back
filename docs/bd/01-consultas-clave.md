@@ -130,3 +130,52 @@ fecha, si el sistema pasara a operación real.
 > año se acercaría o superaría los **500 MB del plan gratuito de Supabase**. Detalle por
 > tabla en [04-indices.md](04-indices.md#tamaño-en-disco). Para la actualización del
 > análisis de volumen del sprint 3.
+---
+
+## Actualización del sprint 3
+
+§3.7 pide en el sprint 3 la *«actualización del análisis de volumen»*. Desde el sprint 2
+cambiaron dos cosas: `reaccion_publicacion` (HU-14), la mensajería (HU-17, HU-18) y
+`auditoria` ya tienen funcionalidad que las escribe, y la base ganó triggers (V9, V10) y
+un procedimiento (V11) cuyo costo hay que conocer.
+
+**Cómo se midió.** PostgreSQL 16 local con V1–V11 y
+[`datos-representativos.sql`](datos-representativos.sql) ampliado: ahora carga también
+616 082 reacciones y 500 000 eventos de auditoría de un año, y calcula las métricas con el
+procedimiento en vez de inventarlas. Detalle de cada medición en
+[04-indices.md](04-indices.md#mediciones-del-sprint-3).
+
+| Tabla | Proyección del sprint 1 | Filas cargadas | Tamaño medido | Escritor real | Observación |
+|---|---|---|---|---|---|
+| `auditoria` | 500 000 | 505 000 | **180 MB** (93 MB de índices) | Aplicación + triggers V10 | **La tabla más grande de la base.** ~45 % de las filas son `REFRESCO_ROTADO`, el camino normal de la sesión |
+| `comentario` | 250 000 | 250 000 | 103 MB | HU-13 | +21 MB por `ux_comentario_id_publicacion`, el apoyo de la FK compuesta de V9 |
+| `mensaje` | 400 000 | 400 000 | 81 MB | HU-17 | Sin cambios respecto del sprint 2 |
+| `reaccion_publicacion` | 600 000 | 616 082 | 77 MB | HU-14 | Medida por primera vez |
+| `publicacion` | 40 000 | 40 000 | 27 MB compactada | HU-07, HU-08, HU-11 | Llegó a 127 MB tras la carga masiva: tuplas muertas de las actualizaciones de contadores (ver abajo) |
+| `evento_reputacion` | 900 000 | 0 | — | Ninguno | Sigue sin escritor (ninguna HU acredita reputación) |
+| `metricas_diarias` | 365 | 365 | < 1 MB | V11 | Calculada por el procedimiento |
+| **Base completa** | | | **535 MB** compactada | | Sprint 2: 240 MB sin reacciones ni auditoría |
+
+### Conclusiones
+
+1. **Un año de actividad ya supera los 500 MB del plan gratuito de Supabase** (535 MB, y
+   eso sin `evento_reputacion`). En el sprint 2 era una proyección; ahora está medido.
+2. **`auditoria` es la que decide.** Con 180 MB, es un tercio de la base, y su índice
+   `ix_auditoria_registro` (56 MB) pesa más que tablas enteras. El hallazgo H-22 de
+   [OWASP](../seguridad/owasp-top-10.md) (sin política de retención) deja de ser teórico.
+   **Recomendación**, no implementada porque cambia qué evidencia se conserva y eso lo
+   decide el equipo: purgar `REFRESCO_ROTADO` a los 90 días (es el camino normal, no un
+   incidente) y conservar 12 meses el resto de eventos. Con la distribución de los datos de
+   prueba (un supuesto: 45 % de renovaciones), solo lo primero reduciría la tabla cerca de
+   un 40 % y la base volvería a caber en el plan gratuito. La proporción real hay que
+   confirmarla en producción con la consulta P16 agrupada por `operacion`.
+3. **Particionamiento: sigue sin justificarse.** Ninguna tabla llega al millón de filas y
+   todas las consultas clave siguen muy por debajo de su presupuesto. La retención resuelve
+   el tamaño con mucho menos costo operativo que particionar `auditoria` por fecha, que
+   queda como la opción si la tabla pasara de unos pocos millones de filas.
+4. **Los contadores generan tuplas muertas en `publicacion`.** Cada comentario o reacción
+   actualiza la fila de su publicación; en una carga masiva eso dejó 26 000 tuplas muertas
+   y la tabla en 127 MB (27 MB tras compactar). En operación normal el `autovacuum` las
+   recoge, y el 77 % de esas actualizaciones fueron HOT (sin tocar índices), porque los
+   contadores no están indexados. No requiere acción; si `publicacion` se hinchara en
+   producción, la medida sería bajar su `fillfactor` para favorecer las actualizaciones HOT.

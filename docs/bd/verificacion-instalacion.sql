@@ -1,7 +1,7 @@
 -- ============================================================================
 --  DevNet - Verificacion de la instalacion del esquema
 --
---  Ejecutar DESPUES de aplicar V1__baseline.sql, en el SQL Editor de Supabase
+--  Ejecutar DESPUES de aplicar las migraciones (V1 a V11), en el SQL Editor de Supabase
 --  o en psql. Cada bloque dice que resultado se espera.
 --
 --  Si algun bloque no da lo esperado, el esquema no quedo bien instalado.
@@ -34,7 +34,11 @@ ORDER BY t.table_name;
 
 
 -- ----------------------------------------------------------------------------
--- 3. Indices declarados      ESPERADO: 22 con prefijo ix_ o ux_
+-- 3. Indices declarados      ESPERADO: 28 con prefijo ix_ o ux_
+--    = 24 creados con CREATE INDEX (22 de V1, ix_auditoria_seguridad de V2/V5,
+--      ix_perfil_tecnologia_inverso de V4)
+--    + 4 que respaldan restricciones UNIQUE con nombre ux_ (3 de V1 y
+--      ux_comentario_id_publicacion de V9)
 --    (el total de pg_indexes es mayor porque incluye los automaticos de
 --     PRIMARY KEY y UNIQUE: ver docs/bd/04-indices.md)
 -- ----------------------------------------------------------------------------
@@ -46,7 +50,7 @@ WHERE schemaname = 'public';
 
 
 -- ----------------------------------------------------------------------------
--- 4. Indices parciales      ESPERADO: 10
+-- 4. Indices parciales      ESPERADO: 11 (10 de V1 + ix_auditoria_seguridad)
 --    Son la firma del modelo: casi toda consulta filtra por un estado.
 -- ----------------------------------------------------------------------------
 SELECT indexname, tablename
@@ -202,7 +206,47 @@ ROLLBACK;   -- no deja rastro
 
 
 -- ----------------------------------------------------------------------------
--- 12. LIMPIEZA (opcional)
+-- 12. LOGICA EN LA BASE (sprint 3, V9-V11)
+--     ESPERADO: 9 triggers del sprint 3 + los 3 de marca de V1 en usuario,
+--     perfil y comentario; sp_consolidar_metricas_diarias como PROCEDURE (p)
+-- ----------------------------------------------------------------------------
+SELECT event_object_table AS tabla, trigger_name,
+       string_agg(event_manipulation, ' OR ' ORDER BY event_manipulation) AS eventos
+FROM information_schema.triggers
+WHERE trigger_schema = 'public'
+GROUP BY event_object_table, trigger_name
+ORDER BY 1, 2;
+
+SELECT proname, prokind FROM pg_proc
+WHERE proname = 'sp_consolidar_metricas_diarias';
+
+-- 12a. Prueba funcional del procedimiento: ESPERADO 7 filas, una por dia
+CALL sp_consolidar_metricas_diarias(
+    (now() AT TIME ZONE 'America/Bogota')::date - 7,
+    (now() AT TIME ZONE 'America/Bogota')::date - 1);
+SELECT fecha, usuarios_nuevos, usuarios_activos, publicaciones_nuevas, comentarios_nuevos
+FROM metricas_diarias
+WHERE fecha >= (now() AT TIME ZONE 'America/Bogota')::date - 7
+ORDER BY fecha;
+
+-- 12b. El contador de comentarios cuadra      ESPERADO: 0
+SELECT count(*) AS publicaciones_descuadradas
+FROM publicacion p
+WHERE p.contador_comentarios <> (SELECT count(*) FROM comentario c
+                                  WHERE c.publicacion_id = p.id AND c.estado = 'PUBLICADO');
+
+-- 12c. Pruebas negativas de V9 (descomentar de a una; cada una DEBE fallar)
+-- Subtipo equivocado  -> "no admite un subtipo PROYECTO"
+-- INSERT INTO publicacion_proyecto (publicacion_id, resumen)
+-- SELECT id, 'x' FROM publicacion WHERE tipo = 'DISCUSION' LIMIT 1;
+-- Respuesta en otra publicacion  -> fk_comentario_padre_misma_publicacion
+-- INSERT INTO comentario (publicacion_id, autor_id, comentario_padre_id, contenido, profundidad)
+-- SELECT p.id, c.autor_id, c.id, 'cruzada', 1
+-- FROM comentario c JOIN publicacion p ON p.id <> c.publicacion_id LIMIT 1;
+
+
+-- ----------------------------------------------------------------------------
+-- 13. LIMPIEZA (opcional)
 --     Deja el esquema vacio para que Flyway lo construya desde cero cuando
 --     exista el backend. Ver la advertencia de docs/bd/README.md.
 --

@@ -749,13 +749,97 @@ VALUES (:publicacion, :estado_anterior, :estado_nuevo, :actor, :motivo);
 
 
 -- ============================================================================
+--  CONSULTAS DEL SPRINT 3
+--
+--  Sobre los objetos de V9-V11: el procedimiento almacenado y la auditoria por
+--  triggers. Justificacion en docs/bd/02-modelo-logico.md (Refinamiento del
+--  sprint 3) y mediciones en docs/bd/04-indices.md (Mediciones del sprint 3).
+-- ============================================================================
+
+
+-- ----------------------------------------------------------------------------
+-- S3-1 | Procedimiento almacenado: consolidar y leer las metricas
+--
+-- Lo no trivial esta dentro de sp_consolidar_metricas_diarias (V11): cinco
+-- agregaciones sobre tablas de cinco modulos por dia de America/Bogota, una
+-- union deduplicada para "usuarios activos" y un upsert idempotente.
+-- Aqui: llamarlo y leer las ultimas cuatro semanas con su variacion semanal.
+-- ----------------------------------------------------------------------------
+CALL sp_consolidar_metricas_diarias(
+    (now() AT TIME ZONE 'America/Bogota')::date - 28,
+    (now() AT TIME ZONE 'America/Bogota')::date - 1);
+
+SELECT
+    date_trunc('week', fecha)::date                 AS semana,
+    sum(usuarios_nuevos)                            AS usuarios_nuevos,
+    round(avg(usuarios_activos))                    AS activos_promedio_diario,
+    sum(publicaciones_nuevas)                       AS publicaciones,
+    sum(comentarios_nuevos)                         AS comentarios,
+    sum(mensajes_enviados)                          AS mensajes,
+    round(100.0 * (sum(publicaciones_nuevas)
+          - lag(sum(publicaciones_nuevas)) OVER (ORDER BY date_trunc('week', fecha)))
+          / NULLIF(lag(sum(publicaciones_nuevas)) OVER (ORDER BY date_trunc('week', fecha)), 0), 1)
+                                                    AS variacion_publicaciones_pct
+FROM metricas_diarias
+WHERE fecha >= (now() AT TIME ZONE 'America/Bogota')::date - 28
+GROUP BY date_trunc('week', fecha)
+ORDER BY semana;
+
+
+-- ----------------------------------------------------------------------------
+-- S3-2 | P16 ampliada: cambios criticos hechos FUERA de la API
+--
+-- Lo no trivial: separa los dos escritores de auditoria. Lo que viene de un
+-- trigger de V10 y no del rol de la aplicacion es un cambio hecho por consola
+-- o por migracion: roles asignados, permisos cambiados, suspensiones. Es la
+-- pregunta que un administrador hace despues de un incidente.
+-- Indice: ix_auditoria_registro (tabla, registro_id, creado_en DESC)
+-- ----------------------------------------------------------------------------
+SELECT
+    a.creado_en,
+    a.usuario_bd                                    AS quien_en_bd,
+    a.actor_id                                      AS actor_declarado,
+    a.tabla,
+    a.operacion,
+    a.registro_id,
+    a.datos_antes,
+    a.datos_despues
+FROM auditoria a
+WHERE a.tabla IN ('usuario_rol', 'rol_permiso', 'suspension', 'usuario')
+  AND a.operacion IN ('INSERT', 'UPDATE', 'DELETE')
+  AND a.usuario_bd IS DISTINCT FROM 'devnet_app'
+  AND a.creado_en >= now() - interval '30 days'
+ORDER BY a.creado_en DESC
+LIMIT 100;
+
+
+-- ----------------------------------------------------------------------------
+-- S3-3 | Historia de privilegios de una cuenta
+--
+-- Lo no trivial: reconstruye, solo desde auditoria, que roles tuvo una cuenta y
+-- cuando, aunque la fila de usuario_rol ya no exista (un DELETE deja la fila en
+-- datos_antes). registro_id de usuario_rol es "usuario_id:rol_id".
+-- ----------------------------------------------------------------------------
+SELECT
+    a.creado_en,
+    a.operacion,
+    r.codigo                                        AS rol,
+    COALESCE(a.actor_id::text, a.usuario_bd)        AS hecho_por
+FROM auditoria a
+JOIN rol r ON r.id = split_part(a.registro_id, ':', 2)::smallint
+WHERE a.tabla = 'usuario_rol'
+  AND split_part(a.registro_id, ':', 1) = :usuario_id
+ORDER BY a.creado_en;
+
+
+-- ============================================================================
 --  CONSULTAS DE INTEGRIDAD
 --
 --  No sirven a una pantalla: verifican que las denormalizaciones declaradas en
 --  docs/bd/02-modelo-logico.md siguen siendo consistentes, y que el invariante
 --  del discriminador se mantiene.
 --
---  Las tres deben devolver CERO FILAS. Se ejecutan en el pipeline como parte
+--  Las cuatro deben devolver CERO FILAS. Se ejecutan en el pipeline como parte
 --  de las pruebas de integracion. Una fila devuelta es un fallo.
 -- ============================================================================
 
@@ -772,6 +856,8 @@ HAVING p.reputacion <> coalesce(sum(e.puntos), 0);
 
 
 -- I2 | Toda publicacion debe tener exactamente el subtipo que declara su discriminador.
+--      Desde V9, los triggers tg_*_tipo_coherente impiden un subtipo equivocado;
+--      lo que sigue vigilando esta consulta es que el subtipo EXISTA.
 --      Es el invariante que ninguna restriccion declarativa de PostgreSQL puede
 --      imponer sobre una jerarquia supertipo/subtipo sin recurrir a un trigger.
 SELECT
@@ -801,3 +887,15 @@ WHERE p.contador_comentarios <> (SELECT count(*) FROM comentario c
                                   WHERE c.publicacion_id = p.id AND c.estado = 'PUBLICADO')
    OR p.contador_reacciones  <> (SELECT count(*) FROM reaccion_publicacion r
                                   WHERE r.publicacion_id = p.id);
+
+
+-- I4 | La auditoria por trigger nunca copia datos sensibles de usuario (V10)
+--      fn_auditar_cambio usa una lista blanca: de usuario solo id, estado y
+--      mfa_habilitado. Si alguien cambiara los argumentos del trigger, esto lo
+--      detectaria.
+SELECT a.id, a.creado_en, a.registro_id
+FROM auditoria a
+WHERE a.tabla = 'usuario'
+  AND a.operacion IN ('INSERT', 'UPDATE', 'DELETE')
+  AND (COALESCE(a.datos_antes, '{}'::jsonb) || COALESCE(a.datos_despues, '{}'::jsonb))
+      ?| ARRAY['clave_hash', 'mfa_secreto', 'correo', 'nombre_usuario'];
