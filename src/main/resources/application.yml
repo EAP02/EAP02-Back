@@ -13,6 +13,12 @@ spring:
       minimum-idle: 1
       connection-timeout: 20000
       max-lifetime: 1200000
+      data-source-properties:
+        # HU-21, criterio 4: sin esto, una PSQLException trae el "Detail" del
+        # servidor, p. ej. "Key (correo)=(ana@correo.com) already exists", y el
+        # log.error del manejador global lo escribiria entero. El codigo SQLSTATE y
+        # el mensaje general se conservan: siguen bastando para diagnosticar.
+        logServerErrorDetail: false
 
   jpa:
     open-in-view: false
@@ -69,6 +75,17 @@ devnet:
     vigencia-url-firmada: 1h
 
 logging:
+  # HU-21 · AB#122, criterio 1: logs en JSON, una linea por evento (ADR-005).
+  # Formato nativo de Spring Boot, sin logback.xml ni dependencias. 'logstash'
+  # produce un JSON plano: @timestamp, level, logger_name, message, stack_trace y
+  # cada clave del MDC (traceId, ruta, metodo) como campo de primer nivel.
+  #
+  # Aplica a todos los perfiles para que las pruebas verifiquen exactamente lo que
+  # corre en produccion. Quien prefiera texto legible en su maquina lo apaga sin
+  # tocar el repo: LOGGING_STRUCTURED_FORMAT_CONSOLE= (vacio) ./mvnw spring-boot:run
+  structured:
+    format:
+      console: ${LOGGING_STRUCTURED_FORMAT_CONSOLE:logstash}
   level:
     root: INFO
     com.codefactory.devnet: INFO

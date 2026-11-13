@@ -226,7 +226,8 @@ consolidan al final con severidad y plazo.
 | Tabla `auditoria` con los eventos de seguridad: acceso denegado, inicio de sesión, fallo, bloqueo, rotación y **reuso** de refresco, cierre de sesión, intervención de moderación y eliminación de un comentario ajeno por un administrador | `EventoAuditoria`, `RegistroAuditoriaJdbc`; migraciones V2 y V5 | `ControlAccesoPorRolIT`, `RefrescoIT`, `EditarProyectoIT`, `ArchivarProyectoIT`, `ComentarioIT` |
 | La auditoría escribe en transacción propia: sobrevive al rollback de la petición | `RegistroAuditoriaJdbc` (`REQUIRES_NEW`) | — |
 | Correlación por `traceId`: en el MDC de los logs, en la cabecera `X-Trace-Id`, en cada error y en la fila de auditoría | `FiltroTraceId` (ADR-005) | *Verificado en producción:* `x-trace-id` en todas las respuestas |
-| Nunca se registran contraseñas, tokens ni la cookie | `ManejadorGlobalErrores`, `CookieRefresco`; §6.2 | — |
+| Logs en JSON con `traceId`, `metodo`, `ruta`, `estadoHttp` y `duracionMs` como campos (HU-21) | `application.yml` (`logging.structured`), `FiltroTraceId` | `LoggingEstructuradoIT`, `FiltroTraceIdTest` |
+| Nunca se registran contraseñas, tokens, la cookie, el correo ni los términos de búsqueda; el driver no copia el `Detail` de PostgreSQL | `ManejadorGlobalErrores`, `CookieRefresco`, `FiltroTraceId`, `logServerErrorDetail: false`; §6.2 | `LoggingEstructuradoIT` |
 
 **Hallazgos**
 
@@ -236,9 +237,9 @@ consolidan al final con severidad y plazo.
 - **H-20** · Si escribir la auditoría falla, `RegistroAuditoriaJdbc` lo registra con
   `log.error` y deja continuar la operación (falla abierto, a propósito). Sin alertas, ese
   `log.error` tampoco lo ve nadie.
-- **H-21** · Los logs son de texto con el formato de Spring, no JSON (§3.3 admite *«otro
-  formato consistente»*), y el patrón no imprime el `traceId` del MDC. Correlacionar un
-  error del cliente con su línea de log exige hoy buscar por hora.
+- ~~**H-21**~~ · Los logs eran de texto con el formato de Spring, no JSON, y el patrón no
+  imprimía el `traceId` del MDC. ✅ **Resuelto** el 13/11/2026 con HU-21 · AB#122: logs en
+  JSON con el `traceId` como campo (enmienda de ADR-005).
 - **H-22** · `auditoria` no tiene política de retención ni purga.
 
 ## A10:2025 — Mishandling of Exceptional Conditions
@@ -290,7 +291,7 @@ el mismo sprint del análisis; quedan tres abiertas.
 | H-24 | A06 | Listados de comentarios, seguidos y seguidores sin paginar | Media | Sprint 3, paginación por cursor como en las publicaciones |
 | H-25 | A06 | Sin límite de frecuencia al comentar, reaccionar y seguir | Media | Con H-12 (Bucket4j, sprint 3) |
 | H-19 | A09 | Sin alertas sobre eventos de seguridad | Media | Sprint 3 (Prometheus/Grafana, §3.7) |
-| H-21 | A09 | Logs sin `traceId` impreso ni formato estructurado | Media | Sprint 3, con la observabilidad |
+| ~~H-21~~ | A09 | Logs sin `traceId` impreso ni formato estructurado | ~~Media~~ | ✅ **Resuelto** el 13/11/2026 (HU-21) |
 | H-08 | A03 | Acciones e imágenes base por etiqueta, no por digest | Media | Backlog técnico |
 | H-13 | A06 | El registro permite comprobar si un correo existe | Baja | Decidir y registrar en un ADR |
 | H-16 | A07 | Sin cambio ni recuperación de contraseña | Baja | Requiere HU propia |
