@@ -19,7 +19,7 @@ flowchart LR
 | --- | :---: | :---: | :---: | :---: |
 | Pull request hacia `develop` o `main` | ✅ | ✅ si `verificar` pasa | — | — |
 | Push (merge) a `develop` | ✅ | ✅ si `verificar` pasa | — | — |
-| Push (merge) a `main` | ✅ | ✅ si `verificar` pasa | ✅ si `calidad` pasa | ✅ si `imagen` pasa |
+| Push (merge) a `main` | ✅ | ⏭️ omitido (ver abajo) | ✅ si `verificar` pasa | ✅ si `imagen` pasa |
 
 ### `verificar` — compilar y probar
 
@@ -36,6 +36,16 @@ Si falla, los informes de Surefire y Failsafe quedan descargables en la ejecuci�
 artefacto `informes-de-pruebas` durante 7 días.
 
 ### `calidad`: Quality Gate de SonarCloud
+
+> **No se ejecuta en el push a `main` (desde el 13/11/2026).** En SonarCloud la rama
+> principal del proyecto es `develop`, y el plan gratuito de la organización no permite
+> consultar el Quality Gate de otras ramas: el job fallaba con *«Organization is not allowed
+> to access data from non main branches»* y, con él, se omitían `imagen` y `desplegar`.
+> No se pierde ningún control: `main` solo recibe merges de `develop` por PR, y ese código
+> ya pasó el Quality Gate en el push a `develop` y en el PR `develop → main`, que se sigue
+> analizando. `imagen` exige que `verificar` haya pasado y que `calidad` haya pasado o se
+> haya omitido, nunca que haya fallado. Si algún día la rama principal de SonarCloud pasa a
+> ser `main` (o el plan cambia), basta con quitar el `if` del job.
 
 Reutiliza los `.class` y el `jacoco.xml` que dejó `verificar` (no recompila ni repite las pruebas) y ejecuta `./mvnw sonar:sonar` con `sonar.qualitygate.wait=true`. El job espera el veredicto del Quality Gate y falla si no pasa, de modo que el PR queda bloqueado (RNF-05: *«Quality Gate de SonarCloud, bloqueante»*). En los PR, SonarCloud además comenta el resultado.
 
