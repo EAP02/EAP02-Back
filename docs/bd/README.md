@@ -17,7 +17,7 @@ Documentación del curso de **Bases de Datos**. Las decisiones que la sostienen 
 | [datos-representativos.sql](datos-representativos.sql) | Carga los volúmenes de la proyección a un año, con distribuciones sesgadas, para medir. Desde el sprint 3 incluye reacciones y auditoría, y calcula las métricas con el procedimiento | Sprint 2–3 |
 | [medicion-planes.sql](medicion-planes.sql) | Mide p50/p95 e índices usados de las consultas clave y de las del sprint 2 | Sprint 2 |
 | [verificacion-instalacion.sql](verificacion-instalacion.sql) | Comprobaciones post-instalación con sus valores esperados | Sprint 2 |
-| [`db/migration/`](../../src/main/resources/db/migration/) | **Modelo físico** (V1 a V11) | Sprint 1–3 |
+| [`db/migration/`](../../src/main/resources/db/migration/) | **Modelo físico** (V1 a V12) | Sprint 1–3 |
 
 ## El modelo físico es la carpeta de migraciones
 
@@ -45,6 +45,7 @@ esté defendiendo un diagrama que no corresponde a la base real.
 | `V9__contador_comentarios_e_integridad.sql` | Trigger del contador de comentarios (y recálculo de los existentes); `tg_publicacion_actualizado` ya no se mueve por contadores; triggers de integridad supertipo/subtipo; FK `fk_comentario_padre_misma_publicacion` | Sprint 3 (§3.7). `contador_comentarios` existía desde V1 y nadie lo mantenía; `publicacion` tiene dos módulos escritores; P02 depende del hilo dentro de una publicación |
 | `V10__auditoria_por_triggers.sql` | `fn_auditar_cambio()` y triggers en `usuario_rol`, `rol_permiso`, `suspension` y `usuario` (solo estado y MFA); columna `auditoria.usuario_bd` | Sprint 3 (§3.2, §5.4). Lo que no pasa por la API —roles, permisos, sanciones— solo lo puede auditar la base |
 | `V11__procedimiento_metricas_diarias.sql` | `sp_consolidar_metricas_diarias(p_desde, p_hasta)` | Sprint 3 (§3.2: al menos un procedimiento almacenado). Llena `metricas_diarias`, que existía vacía desde V1 |
+| `V12__indices_consulta_auditoria.sql` | `ix_auditoria_creado` y `ix_auditoria_actor` | Sprint 3 (HU-20). La consulta del registro ordena por `creado_en DESC, id DESC` y filtra por actor y fechas; sin ellos cada página ordena la tabla entera, que crece con cada inicio de sesión |
 
 `V4` es la única destructiva. Migra solo las habilidades que coinciden con una tecnología
 aprobada del catálogo, comparando sin distinguir mayúsculas contra el nombre o el *slug*;

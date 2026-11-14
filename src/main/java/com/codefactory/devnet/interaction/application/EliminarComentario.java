@@ -58,18 +58,19 @@ public class EliminarComentario {
 
         comentarios.marcarEliminado(actual.id());
 
-        // Si el autor elimina lo suyo no hay nada que rendir; si es un administrador
-        // sobre contenido ajeno, queda auditado.
-        if (PoliticaComentario.esIntervencionDeAdministrador(actual.autorId(), actor.id())) {
-            auditoria.registrar(new EventoAuditoria(
-                    "comentario",
-                    EventoAuditoria.Operacion.DELETE,
-                    actual.id().toString(),
-                    actor.id(),
-                    null,
-                    null,
-                    comando.ipOrigen()));
-        }
+        // HU-20: toda eliminacion de contenido queda registrada, la haga el autor o un
+        // administrador. Cuando es una intervencion sobre contenido ajeno se anota ademas
+        // de quien era el comentario (datos_antes), que es lo que permite distinguirla de
+        // un autor que retira lo suyo. Solo ids: el texto del comentario no se copia.
+        boolean intervencion = PoliticaComentario.esIntervencionDeAdministrador(actual.autorId(), actor.id());
+        auditoria.registrar(new EventoAuditoria(
+                "comentario",
+                EventoAuditoria.Operacion.DELETE,
+                actual.id().toString(),
+                actor.id(),
+                intervencion ? "{\"autor_id\": \"" + actual.autorId() + "\"}" : null,
+                null,
+                comando.ipOrigen()));
     }
 
     public record Comando(UUID comentarioId, String ipOrigen) { }

@@ -227,6 +227,8 @@ consolidan al final con severidad y plazo.
 | La auditoría escribe en transacción propia: sobrevive al rollback de la petición | `RegistroAuditoriaJdbc` (`REQUIRES_NEW`) | — |
 | Correlación por `traceId`: en el MDC de los logs, en la cabecera `X-Trace-Id`, en cada error y en la fila de auditoría | `FiltroTraceId` (ADR-005) | *Verificado en producción:* `x-trace-id` en todas las respuestas |
 | Logs en JSON con `traceId`, `metodo`, `ruta`, `estadoHttp` y `duracionMs` como campos (HU-21) | `application.yml` (`logging.structured`), `FiltroTraceId` | `LoggingEstructuradoIT`, `FiltroTraceIdTest` |
+| Consulta del registro **solo para administradores**: `GET /api/v1/auditoria` exige `auditoria:consultar` (ADMIN con MFA), es de solo lectura, pagina con tope de 100 y no devuelve contraseñas ni tokens (HU-20) | `AuditoriaController` (`@PreAuthorize`), `RepositorioAuditoriaJdbc` (SQL estático, parametrizado) | `AuditoriaIT` |
+| Toda eliminación de contenido deja registro, también la del autor sobre lo suyo; los cambios de rol y permisos los captura un trigger aunque se hagan por consola | `EliminarComentario`; V10 | `AuditoriaIT`, `BaseDatosSprint3IT` |
 | Nunca se registran contraseñas, tokens, la cookie, el correo ni los términos de búsqueda; el driver no copia el `Detail` de PostgreSQL | `ManejadorGlobalErrores`, `CookieRefresco`, `FiltroTraceId`, `logServerErrorDetail: false`; §6.2 | `LoggingEstructuradoIT` |
 
 **Hallazgos**
@@ -241,6 +243,14 @@ consolidan al final con severidad y plazo.
   imprimía el `traceId` del MDC. ✅ **Resuelto** el 13/11/2026 con HU-21 · AB#122: logs en
   JSON con el `traceId` como campo (enmienda de ADR-005).
 - **H-22** · `auditoria` no tiene política de retención ni purga.
+- **H-26** · **Consultar la auditoría no deja rastro.** Un administrador puede leer el
+  registro completo (incluidas IP y correos intentados) sin que quede constancia de la
+  lectura. `ck_auditoria_operacion` no tiene una operación para ello; añadirla requiere una
+  migración y decidir si cada consulta se anota o solo las que usan filtros por actor.
+- **H-27** · El registro muestra a los administradores la IP de origen y, en un inicio de
+  sesión fallido, el correo que se intentó. Es dato personal, pero es justo lo que permite
+  investigar un ataque; el acceso está limitado a ADMIN con MFA. **Riesgo aceptado**, con
+  revisión si se amplía el grupo de quienes pueden consultar.
 
 ## A10:2025 — Mishandling of Exceptional Conditions
 
@@ -301,6 +311,8 @@ el mismo sprint del análisis; quedan tres abiertas.
 | H-05 | A02 | Sin `Content-Security-Policy` | Baja | Backlog técnico |
 | H-09 | A03 | Sin SBOM | Baja | Con H-07 |
 | H-22 | A09 | Auditoría sin retención | Baja | Sprint 3, con el análisis de volumen |
+| H-26 | A09 | La consulta de la auditoría no se audita | Baja | Backlog técnico; requiere migración |
+| H-27 | A09 | El registro expone IP y correos intentados a los administradores | — | **Riesgo aceptado**: necesario para investigar; acceso solo ADMIN con MFA |
 | ~~H-06~~ | A02 | `.env.example` con el pooler de transacción | ~~Baja~~ | ✅ **Resuelto** el 14/10/2026 |
 | H-02 | A01 | SSRF cuando se integre la API de GitHub | — | Revisar al implementarla |
 | H-10 | A04 | Par JWT efímero fuera de `prod` | — | Intencional; sin acción |
