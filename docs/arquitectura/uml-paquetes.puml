@@ -1,7 +1,7 @@
 @startuml uml-paquetes
 ' DevNet - Diagrama de paquetes y componentes CON INTERFACES
 ' Entregable de Sprint 1 (lineamientos, 3.7 - Arquitectura de Software)
-' Sprint 3: se anade el modulo administration (HU-20; alojara tambien HU-19).
+' Sprint 3: se anade el modulo administration (HU-20 auditoria y HU-19 reporte de actividad).
 ' Actualizado en el sprint 2: modulo interaction (HU-13, HU-14) y seguimiento en profile (HU-15).
 '
 ' Refleja el codigo. Cada paquete existe bajo src/main/java/com/codefactory/devnet
@@ -115,9 +115,11 @@ package "interaction" as IN #FFFDE7 {
 package "administration" as AD #E8EAF6 {
   package "administration.api" {
     class AuditoriaController
+    class ReporteActividadController
   }
   package "administration.domain" {
     interface RepositorioAuditoria
+    interface RepositorioMetricas
   }
   package "administration.application" {}
   package "administration.infrastructure" {}

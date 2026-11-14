@@ -33,8 +33,7 @@ comentarios, proyectos o mensajes. Lo convertiría en el módulo que lee lo de t
 Se crea el módulo `administration` (`api`, `domain`, `application`, `infrastructure`).
 Consume `identity.api.UsuarioDirectorio` para el nombre de quien actuó y `shared` para
 errores y para el enum de operaciones de auditoría, y no lo consume ningún otro módulo.
-Lee `auditoria` por JDBC con sentencias estáticas. HU-19 reutilizará `RangoFechas` y
-`Paginacion`, que viven en su dominio.
+Lee `auditoria` por JDBC con sentencias estáticas. HU-19 (reporte de actividad) vive en él y reutiliza `RangoFechas`, que está en su dominio.
 
 ## Consecuencias
 
@@ -42,7 +41,7 @@ Lee `auditoria` por JDBC con sentencias estáticas. HU-19 reutilizará `RangoFec
   ni sobre un módulo de negocio.
 - `administration` se añade a `MODULOS` en `FronterasModularesTest`: su frontera se verifica
   en cada build como la de los demás.
-- El módulo lee tablas de otros por SQL (`auditoria` hoy; `metricas_diarias` en HU-19). Es el
+- El módulo lee tablas de otros por SQL (`auditoria` en HU-20; `metricas_diarias` en HU-19). Es el
   mismo acoplamiento de datos que ya tienen `interaction` y `discussion` con `publicacion`
   (nota N3 de `uml-paquetes.puml`), y se acepta por la misma razón: no hay importación entre
   módulos, solo SQL de lectura.
