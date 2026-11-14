@@ -18,6 +18,7 @@ el anterior queda marcado como reemplazado. El historial es el valor del registr
 | [ADR-006](ADR-006-contratos-entre-modulos-en-api.md) | El contrato entre módulos se publica en `<módulo>.api` | Aceptada | 2026-09-18 |
 | [ADR-007](ADR-007-swagger-ui-habilitado-en-produccion.md) | Swagger UI queda habilitado también en producción | Aceptada | 2026-09-19 |
 | [ADR-008](ADR-008-modulo-administration.md) | Las lecturas administrativas viven en un módulo `administration` | Aceptada | 2026-11-14 |
+| [ADR-009](ADR-009-reporte-con-consolidacion-bajo-demanda.md) | El reporte de actividad consolida las métricas bajo demanda | Aceptada | 2026-11-14 |
 
 ## Estados posibles
 

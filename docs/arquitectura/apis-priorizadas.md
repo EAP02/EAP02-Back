@@ -85,11 +85,16 @@ demás exige `Authorization: Bearer`.
 | Método y ruta | Qué hace | Acceso | Historia | Pruebas |
 |---|---|---|---|---|
 | `GET /api/v1/auditoria` | Registro de auditoría paginado, del más reciente al más antiguo, con filtros opcionales por `operacion`, `actorId`, `tabla` y rango `desde`/`hasta`. Solo lectura | `auditoria:consultar` (solo ADMIN, con MFA) | HU-20 | `AuditoriaIT`, `ConsultarAuditoriaTest`, `RangoFechasTest` |
+| `GET /api/v1/reportes/actividad` | Reporte de actividad y crecimiento en un rango obligatorio (máximo 92 días): usuarios activos distintos, proyectos, discusiones y comentarios publicados, y nuevos registros por `SEMANA` (por defecto) o `MES`, con acumulado. Estado vacío si no hubo actividad | `metricas:consultar` (solo ADMIN, con MFA) | HU-19 | `ReporteActividadIT`, `ConsultarReporteActividadTest`, `RangoFechasReporteTest` |
 
-Errores propios: `400 RANGO_FECHAS_INVALIDO`, `400 AUDITORIA_OPERACION_INVALIDA`,
-`400 PAGINACION_INVALIDA`. El recurso no admite `POST`, `PUT` ni `DELETE`: el registro lo
-escribe el sistema, y que un administrador pudiera borrar su propio rastro deshace su
-propósito. Este módulo también alojará el reporte de actividad (HU-19).
+Errores propios de la auditoría: `400 RANGO_FECHAS_INVALIDO`, `400 AUDITORIA_OPERACION_INVALIDA` y
+`400 PAGINACION_INVALIDA`. Del reporte: `400 RANGO_FECHAS_INVALIDO` (la fecha final es anterior a la
+inicial), `400 RANGO_FECHAS_REQUERIDO`, `400 RANGO_FECHAS_DEMASIADO_AMPLIO` y `400 AGRUPACION_INVALIDA`.
+
+Ninguno de los dos recursos admite `POST`, `PUT` ni `DELETE`: la auditoría la escribe el sistema, y
+que un administrador pudiera borrar su propio rastro deshace su propósito. El reporte es otro `GET` de
+solo lectura; la primera consulta de un rango calcula y guarda las métricas de los días pendientes
+(ADR-009), un cálculo idempotente que el cliente no observa.
 
 > El inventario de arriba es el del sprint 2 y no incluye `messaging`, que añadió otro
 > integrante; quien lo documente debe reconciliar el total de endpoints, recursos y módulos.
