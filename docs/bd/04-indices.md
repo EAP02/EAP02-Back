@@ -68,13 +68,15 @@ Con esos dos, `V1__baseline.sql` declara **22 índices**, de los cuales 10 son p
 
 ### Índices posteriores a la V1
 
-El inventario de arriba es el de la migración inicial. Cuatro migraciones lo modifican:
+El inventario de arriba es el de la migración inicial. Varias migraciones lo modifican:
 
 | Índice | Migración | Tipo | Por qué |
 |---|---|---|---|
 | `ix_auditoria_seguridad` | V2, recreado en V5 | Parcial sobre `(operacion, creado_en DESC)` | Sirve la cola de «quién está tocando puertas cerradas». Parcial porque los eventos de seguridad son una minoría permanente frente a los cambios de datos, y solo se consultan entre ellos |
 | `ix_perfil_habilidad_usuario` | V3, **eliminado en V4** | — | Desapareció junto con su tabla |
 | `ix_perfil_tecnologia_inverso` | V4 | Total sobre `(tecnologia_id, usuario_id)` | No es redundante con la clave primaria: **es el otro sentido**. La PK `(usuario_id, tecnologia_id)` resuelve «qué declara este usuario»; este resuelve «quién sabe esta tecnología», que es la consulta detrás de buscar colaboradores por stack (P03) |
+| `ix_auditoria_creado` | V12 | Total sobre `(creado_en DESC, id DESC)` | Sostiene el orden de `GET /api/v1/auditoria` (HU-20) y su filtro por rango de fechas; el `id` como desempate hace determinista la paginación. Los índices anteriores exigen conocer el registro o la traza |
+| `ix_auditoria_actor` | V12 | Total sobre `(actor_id, creado_en DESC)` | «Qué hizo este usuario», la pregunta típica de una investigación. No se indexan `operacion` ni `tabla`: pocos valores distintos, no discriminan |
 | `ux_comentario_id_publicacion` | V9 | Único sobre `(id, publicacion_id)` | **No responde a una consulta: lo exige una restricción.** Una clave foránea compuesta necesita un `UNIQUE` en el destino, y `fk_comentario_padre_misma_publicacion` apunta a `(id, publicacion_id)`. Cuesta 21 MB con 250 000 comentarios y una entrada más por cada comentario nuevo; se acepta porque es el precio de que P02 sea correcta por construcción y no por disciplina |
 
 **V5 recrea `ix_auditoria_seguridad` en vez de añadir otro.** El `WHERE` de un índice
@@ -86,8 +88,8 @@ fuera del índice y su consulta vuelve a recorrer la tabla entera. Se le suma
 minutos por sesión activa. Incluirlo convertiría un índice parcial en uno casi total y
 encarecería la escritura sin que nadie consulte esa cola.
 
-Neto tras las once migraciones: **24 índices creados con `CREATE INDEX`, 11 de ellos
-parciales**, más `ux_comentario_id_publicacion`, que no se crea con `CREATE INDEX` sino que
+Neto tras las doce migraciones: **26 índices creados con `CREATE INDEX`, 11 de ellos
+parciales** (V12 añade dos totales), más `ux_comentario_id_publicacion`, que no se crea con `CREATE INDEX` sino que
 respalda la restricción `UNIQUE` de V9 (como ya hacían tres restricciones `ux_` de V1). V6–V8,
 V10 y V11 no crean índices. [`verificacion-instalacion.sql`](verificacion-instalacion.sql)
 espera 28 nombres `ix_`/`ux_` y detalla la suma.
