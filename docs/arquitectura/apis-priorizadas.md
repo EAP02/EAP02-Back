@@ -80,6 +80,20 @@ demás exige `Authorization: Bearer`.
 |---|---|---|---|---|
 | `GET /api/v1/tecnologias` | Catálogo de tecnologías aprobadas: `id` para publicar, `slug` para filtrar | Público | HU-09 | `BuscarProyectosIT` |
 
+### P5 — Administración · módulo `administration` (sprint 3)
+
+| Método y ruta | Qué hace | Acceso | Historia | Pruebas |
+|---|---|---|---|---|
+| `GET /api/v1/auditoria` | Registro de auditoría paginado, del más reciente al más antiguo, con filtros opcionales por `operacion`, `actorId`, `tabla` y rango `desde`/`hasta`. Solo lectura | `auditoria:consultar` (solo ADMIN, con MFA) | HU-20 | `AuditoriaIT`, `ConsultarAuditoriaTest`, `RangoFechasTest` |
+
+Errores propios: `400 RANGO_FECHAS_INVALIDO`, `400 AUDITORIA_OPERACION_INVALIDA`,
+`400 PAGINACION_INVALIDA`. El recurso no admite `POST`, `PUT` ni `DELETE`: el registro lo
+escribe el sistema, y que un administrador pudiera borrar su propio rastro deshace su
+propósito. Este módulo también alojará el reporte de actividad (HU-19).
+
+> El inventario de arriba es el del sprint 2 y no incluye `messaging`, que añadió otro
+> integrante; quien lo documente debe reconciliar el total de endpoints, recursos y módulos.
+
 Fuera de `/api/v1`, `GET /actuator/health` es público y lo usan Render y el `HEALTHCHECK`
 del `Dockerfile` para saber si el servicio está vivo.
 

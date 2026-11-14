@@ -25,6 +25,8 @@ Container_Boundary(api, "API DevNet") {
 
     Component(interaction, "Interaccion", "interaction", "Comentarios en proyectos y discusiones, con eliminacion por su autor o por un administrador auditada (HU-13), y reacciones con una sola por usuario y publicacion y contador de la publicacion (HU-14). Persiste por JDBC: la entidad de publicacion es de project.")
 
+    Component(administration, "Administracion", "administration", "Consulta del registro de auditoria, solo para administradores: paginada, con filtros por actor, operacion, objeto y fechas, y de solo lectura (HU-20). Persiste por JDBC sobre la tabla auditoria. Alojara el reporte de actividad (HU-19).")
+
     Component(shared, "Kernel compartido", "shared", "Filtro de traceId, manejador global de errores (ADR-005), registro de auditoria, propiedades de configuracion y nombres de cache. No depende de ningun modulo.")
 
     Component(config, "Arranque", "config", "Cadena de seguridad, par RSA, gestor de caches y contrato OpenAPI. Cablea la aplicacion; ningun modulo depende de el (regla 7).")
@@ -38,6 +40,7 @@ Rel(usuario, profile, "Consulta y edita su perfil", "REST")
 Rel(usuario, project, "Publica, edita, elimina y busca proyectos; consulta el catalogo", "REST")
 Rel(usuario, discussion, "Abre y lee discusiones", "REST")
 Rel(usuario, interaction, "Comenta, elimina sus comentarios y reacciona", "REST")
+Rel(usuario, administration, "Un administrador consulta la auditoria", "REST")
 
 ' --- Dependencias entre modulos. Siempre hacia el paquete api del destino (ADR-006).
 Rel_D(profile, identity, "identity.api.UsuarioDirectorio: quien esta autenticado")
@@ -47,6 +50,7 @@ Rel_D(project, identity, "identity.api.UsuarioDirectorio: autor y permisos")
 Rel_D(discussion, identity, "identity.api.UsuarioDirectorio: autor y participantes")
 Rel_D(discussion, project, "project.api.CatalogoTecnologiasConsulta: etiquetas validas")
 Rel_D(interaction, identity, "identity.api.UsuarioDirectorio: autor y permisos")
+Rel_D(administration, identity, "identity.api.UsuarioDirectorio: nombre de quien actuo")
 
 ' --- Todos los modulos consumen el kernel.
 Rel_D(identity, shared, "Errores, auditoria, propiedades")
@@ -54,6 +58,7 @@ Rel_D(profile, shared, "Errores")
 Rel_D(project, shared, "Errores, auditoria")
 Rel_D(discussion, shared, "Errores")
 Rel_D(interaction, shared, "Errores, auditoria")
+Rel_D(administration, shared, "Errores, operaciones de auditoria")
 Rel_D(config, shared, "Propiedades y nombres de cache")
 
 Rel(identity, bd, "JPA")
@@ -61,6 +66,7 @@ Rel(profile, bd, "JPA; JDBC para el seguimiento")
 Rel(project, bd, "JPA")
 Rel(discussion, bd, "JDBC (publicacion es compartida con project)")
 Rel(interaction, bd, "JDBC (publicacion es compartida con project)")
+Rel(administration, bd, "JDBC (lectura de auditoria)")
 Rel(shared, bd, "JDBC (auditoria: la tabla usa jsonb e inet)")
 
 SHOW_LEGEND()

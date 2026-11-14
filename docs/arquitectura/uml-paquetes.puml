@@ -1,6 +1,7 @@
 @startuml uml-paquetes
 ' DevNet - Diagrama de paquetes y componentes CON INTERFACES
 ' Entregable de Sprint 1 (lineamientos, 3.7 - Arquitectura de Software)
+' Sprint 3: se anade el modulo administration (HU-20; alojara tambien HU-19).
 ' Actualizado en el sprint 2: modulo interaction (HU-13, HU-14) y seguimiento en profile (HU-15).
 '
 ' Refleja el codigo. Cada paquete existe bajo src/main/java/com/codefactory/devnet
@@ -111,6 +112,17 @@ package "interaction" as IN #FFFDE7 {
   package "interaction.infrastructure" {}
 }
 
+package "administration" as AD #E8EAF6 {
+  package "administration.api" {
+    class AuditoriaController
+  }
+  package "administration.domain" {
+    interface RepositorioAuditoria
+  }
+  package "administration.application" {}
+  package "administration.infrastructure" {}
+}
+
 package "config" as CF #FCE4EC {
   class SeguridadConfig <<Configuration>>
   class JwtConfig <<Configuration>>
@@ -125,6 +137,7 @@ PJ ..> ID : identity.api.UsuarioDirectorio
 DI ..> ID : identity.api.UsuarioDirectorio
 DI ..> PJ : project.api.CatalogoTecnologiasConsulta
 IN ..> ID : identity.api.UsuarioDirectorio
+AD ..> ID : identity.api.UsuarioDirectorio
 
 ' --- Hacia el kernel: todos, y nadie al reves (regla 4)
 ID ..> SH
@@ -132,6 +145,7 @@ PR ..> SH
 PJ ..> SH
 DI ..> SH
 IN ..> SH
+AD ..> SH
 CF ..> SH
 
 note bottom of CF
