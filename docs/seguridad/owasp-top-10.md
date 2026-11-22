@@ -168,6 +168,12 @@ consolidan al final con severidad y plazo.
   usuario autenticado puede automatizar spam de comentarios o altas y bajas masivas de
   reacciones y seguimientos. Es la misma carencia de H-12 aplicada a las acciones de mayor
   frecuencia de la plataforma.
+- **H-28** · **El reporte de actividad calcula bajo demanda.** La primera consulta de un rango
+  de hasta 92 días puede ejecutar hasta 92 consolidaciones diarias, cada una una pasada sobre
+  varias tablas, y `fn_usuarios_activos` agrega en vivo sobre todo el rango. Un administrador
+  que lo repita con rangos distintos carga la base. **Mitigado:** acceso solo ADMIN con MFA,
+  tope de 92 días, cada día cerrado se calcula una sola vez y la consulta es de lectura sobre la
+  tabla preagregada. Sin límite de frecuencia mientras no exista H-12.
 - **H-13** · El registro responde `409 AUTH_CORREO_YA_REGISTRADO`, lo que permite comprobar
   si un correo tiene cuenta. El inicio de sesión sí responde igual para correo inexistente y
   contraseña incorrecta. Es un compromiso habitual de usabilidad, pero debería decidirse y
@@ -227,6 +233,7 @@ consolidan al final con severidad y plazo.
 | La auditoría escribe en transacción propia: sobrevive al rollback de la petición | `RegistroAuditoriaJdbc` (`REQUIRES_NEW`) | — |
 | Correlación por `traceId`: en el MDC de los logs, en la cabecera `X-Trace-Id`, en cada error y en la fila de auditoría | `FiltroTraceId` (ADR-005) | *Verificado en producción:* `x-trace-id` en todas las respuestas |
 | Logs en JSON con `traceId`, `metodo`, `ruta`, `estadoHttp` y `duracionMs` como campos (HU-21) | `application.yml` (`logging.structured`), `FiltroTraceId` | `LoggingEstructuradoIT`, `FiltroTraceIdTest` |
+| Reporte de actividad **solo para administradores**: `GET /api/v1/reportes/actividad` exige `metricas:consultar` (ADMIN con MFA), solo lectura, rango obligatorio y acotado a 92 días, SQL estático y parametrizado (HU-19) | `ReporteActividadController` (`@PreAuthorize`), `RepositorioMetricasJdbc`; V13 | `ReporteActividadIT` |
 | Consulta del registro **solo para administradores**: `GET /api/v1/auditoria` exige `auditoria:consultar` (ADMIN con MFA), es de solo lectura, pagina con tope de 100 y no devuelve contraseñas ni tokens (HU-20) | `AuditoriaController` (`@PreAuthorize`), `RepositorioAuditoriaJdbc` (SQL estático, parametrizado) | `AuditoriaIT` |
 | Toda eliminación de contenido deja registro, también la del autor sobre lo suyo; los cambios de rol y permisos los captura un trigger aunque se hagan por consola | `EliminarComentario`; V10 | `AuditoriaIT`, `BaseDatosSprint3IT` |
 | Nunca se registran contraseñas, tokens, la cookie, el correo ni los términos de búsqueda; el driver no copia el `Detail` de PostgreSQL | `ManejadorGlobalErrores`, `CookieRefresco`, `FiltroTraceId`, `logServerErrorDetail: false`; §6.2 | `LoggingEstructuradoIT` |
@@ -300,6 +307,7 @@ el mismo sprint del análisis; quedan tres abiertas.
 | H-01 | A01 | Sin suspensión de cuentas ni gestión de roles por API | Media | Requiere HU propia |
 | H-24 | A06 | Listados de comentarios, seguidos y seguidores sin paginar | Media | Sprint 3, paginación por cursor como en las publicaciones |
 | H-25 | A06 | Sin límite de frecuencia al comentar, reaccionar y seguir | Media | Con H-12 (Bucket4j, sprint 3) |
+| H-28 | A06 | El reporte calcula bajo demanda hasta 92 días por consulta | Baja | Mitigado (solo ADMIN, tope de 92 días); límite de frecuencia con H-12 |
 | H-19 | A09 | Sin alertas sobre eventos de seguridad | Media | Sprint 3 (Prometheus/Grafana, §3.7) |
 | ~~H-21~~ | A09 | Logs sin `traceId` impreso ni formato estructurado | ~~Media~~ | ✅ **Resuelto** el 13/11/2026 (HU-21) |
 | H-08 | A03 | Acciones e imágenes base por etiqueta, no por digest | Media | Backlog técnico |

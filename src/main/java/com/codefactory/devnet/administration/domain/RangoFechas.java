@@ -5,6 +5,7 @@ import com.codefactory.devnet.shared.api.ExcepcionNegocio;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 
 /**
  * Rango de dias, ambos extremos incluidos. Cualquiera de los dos puede faltar (rango
@@ -21,10 +22,28 @@ public record RangoFechas(LocalDate desde, LocalDate hasta) {
 
     public static final ZoneId ZONA = ZoneId.of("America/Bogota");
 
+    /** Tope del reporte (HU-19): aprox. los 90 dias de la consulta P13, y acota el trabajo de una peticion. */
+    public static final int DIAS_MAXIMOS_REPORTE = 92;
+
     public RangoFechas {
         if (desde != null && hasta != null && hasta.isBefore(desde)) {
             throw new ExcepcionNegocio(CodigoErrorAdministracion.RANGO_FECHAS_INVALIDO);
         }
+    }
+
+    /**
+     * Rango del reporte de actividad (HU-19): las dos fechas son obligatorias, la final no
+     * puede ser anterior a la inicial y el rango no pasa de {@value #DIAS_MAXIMOS_REPORTE} dias.
+     */
+    public static RangoFechas paraReporte(LocalDate desde, LocalDate hasta) {
+        if (desde == null || hasta == null) {
+            throw new ExcepcionNegocio(CodigoErrorAdministracion.RANGO_FECHAS_REQUERIDO);
+        }
+        RangoFechas rango = new RangoFechas(desde, hasta);   // rechaza el rango invertido
+        if (ChronoUnit.DAYS.between(desde, hasta) + 1 > DIAS_MAXIMOS_REPORTE) {
+            throw new ExcepcionNegocio(CodigoErrorAdministracion.RANGO_FECHAS_DEMASIADO_AMPLIO);
+        }
+        return rango;
     }
 
     /** Primer instante del dia inicial, o {@code null} si el rango no tiene inicio. */

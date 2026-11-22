@@ -23,7 +23,22 @@ public enum CodigoErrorAdministracion implements CodigoError {
     /** Pagina negativa o tamano fuera de 1..100. */
     PAGINACION_INVALIDA(
             400,
-            "La paginacion no es valida: la pagina empieza en 0 y el tamano va de 1 a 100.");
+            "La paginacion no es valida: la pagina empieza en 0 y el tamano va de 1 a 100."),
+
+    /** HU-19: el reporte necesita las dos fechas. */
+    RANGO_FECHAS_REQUERIDO(
+            400,
+            "Indica el rango de fechas: los parametros desde y hasta son obligatorios (AAAA-MM-DD)."),
+
+    /** HU-19: tope de dias, para que una sola consulta no dispare decenas de calculos. */
+    RANGO_FECHAS_DEMASIADO_AMPLIO(
+            400,
+            "El rango de fechas es demasiado amplio: el maximo son 92 dias."),
+
+    /** HU-19: la agrupacion pedida no es SEMANA ni MES. */
+    AGRUPACION_INVALIDA(
+            400,
+            "La agrupacion no es valida. Usa SEMANA o MES.");
 
     private final Definicion definicion;
 

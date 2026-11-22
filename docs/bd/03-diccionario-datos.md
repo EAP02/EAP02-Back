@@ -103,8 +103,8 @@ ORDER BY 1;
 |---|---|---|---|
 | `usuario` | Credenciales, estado de la cuenta, MFA y bloqueo por intentos | 1:1 con `perfil` | 5 000 |
 | `rol` | Catálogo de los cuatro roles, con la marca `exige_mfa` | N:M con `permiso` | 4 |
-| `permiso` | Catálogo de capacidades evaluadas por `@PreAuthorize` | N:M con `rol` | 22 |
-| `rol_permiso` | Tabla puente rol ↔ permiso | Puente | 43 |
+| `permiso` | Catálogo de capacidades evaluadas por `@PreAuthorize` | N:M con `rol` | 23 |
+| `rol_permiso` | Tabla puente rol ↔ permiso | Puente | 44 |
 | `usuario_rol` | Asignación de roles, con actor y fecha | Puente | 6 000 |
 | `identidad_externa` | Vínculo con GitHub. Su existencia marca el perfil como verificado | N:1 con `usuario` | 4 000 |
 | `token_refresco` | Sesiones activas, con familia para rotación y detección de reuso | N:1 con `usuario` | 50 000 |
@@ -169,6 +169,8 @@ ORDER BY 1;
 | `fn_publicacion_tipo_inmutable` | Función de trigger | `publicacion` | Rechaza cambiar `tipo` cuando ya hay subtipo | V9 |
 | `fn_auditar_cambio` | Función de trigger | `usuario_rol`, `rol_permiso`, `suspension`, `usuario` | Escribe en `auditoria`, con lista blanca de columnas | V10 |
 | `sp_consolidar_metricas_diarias(p_desde, p_hasta)` | Procedimiento (`CALL`) | `metricas_diarias` | Agrega la actividad de un rango de días; idempotente | V11 |
+| `sp_consolidar_metricas_pendientes` | Procedimiento | `metricas_diarias` (vía `sp_consolidar_metricas_diarias`) | Calcula solo los días sin fila o calculados antes de cerrar; lo invoca el reporte de HU-19 | V13 |
+| `fn_usuarios_activos` | Función | `auditoria`, `publicacion`, `comentario`, `reaccion_publicacion`, `mensaje` | Usuarios **distintos** con actividad en un rango (no es la suma de los activos diarios) | V13 |
 
 Restricción nueva del sprint 3: `fk_comentario_padre_misma_publicacion`, con su
 `UNIQUE (id, publicacion_id)` de apoyo (`ux_comentario_id_publicacion`).
@@ -182,8 +184,8 @@ Restricción nueva del sprint 3: `fk_comentario_padre_misma_publicacion`, con su
 | Tabla | Filas | Contenido |
 |---|---|---|
 | `rol` | 4 | `VISITANTE`, `DESARROLLADOR`, `MODERADOR` y `ADMIN`; los dos últimos con `exige_mfa = true` |
-| `permiso` | 22 | Códigos con formato `recurso:accion` (20 en V1; V6 y V7 añadieron `comentario:eliminar-ajeno` y `usuario:seguir`) |
-| `rol_permiso` | 43 | Asignación de capacidades (40 en V1; +1 en V6, +2 en V7) |
+| `permiso` | 23 | Códigos con formato `recurso:accion` (20 en V1; V6, V7 y V13 añadieron `comentario:eliminar-ajeno`, `usuario:seguir` y `metricas:consultar`) |
+| `rol_permiso` | 44 | Asignación de capacidades (40 en V1; +1 en V6, +2 en V7, +1 en V13) |
 | `tecnologia` | 20 | Catálogo semilla aprobado |
 
 ---
