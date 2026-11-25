@@ -21,7 +21,7 @@ Cada RNF es verificable. Un requisito no funcional que no se puede medir es una 
 | RNF-06 | Interoperabilidad | Contratos versionados | OpenAPI 3.1 publicado por release, política de retiro de un sprint | Comparación de esquema en el pipeline |
 | RNF-07 | Trazabilidad | Correlacionar todo | `traceId` presente en el 100 % de respuestas, logs y filas de auditoría | Prueba de integración sobre toda respuesta |
 | RNF-08 | Seguridad | §3.4 completo | Cero vulnerabilidades críticas abiertas al liberar | SCA, SAST y detección de secretos, bloqueantes |
-| RNF-09 | Usabilidad y accesibilidad | WCAG 2.2 AA | **No aplica**: el perfil avanzado no contempla frontend (§1.3). Se traslada a la claridad del contrato OpenAPI | Todo endpoint con descripción, ejemplo y errores declarados |
+| RNF-09 | Usabilidad y accesibilidad | WCAG 2.2 AA | Sin frontend desplegado, **no se evalúa WCAG** sobre el producto. El frontend local (HU-22) no está en alcance de evaluación; mientras tanto se exige la claridad del contrato OpenAPI | Todo endpoint con descripción, ejemplo y errores declarados (completo desde el sprint 3) |
 
 ### Presupuestos de latencia por operación (RNF-02)
 

@@ -57,6 +57,10 @@ logging:
     org.hibernate.SQL: WARN
 
 devnet:
+  observabilidad:
+    # Sin valor por defecto a proposito, igual que las claves JWT: un fallo ruidoso al
+    # desplegar es preferible a un endpoint de metricas con un token conocido.
+    token-metricas: ${METRICAS_TOKEN}
   api:
     url-servidor: ${API_URL}
   seguridad:

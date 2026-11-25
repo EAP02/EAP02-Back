@@ -1,6 +1,6 @@
 @startuml uml-despliegue
 ' DevNet - Diagrama UML de Despliegue
-' Entregable de Sprint 1, refinado en Sprint 2 (lineamientos, 3.7)
+' Entregable de Sprint 1, refinado en Sprint 2 y 3 (lineamientos, 3.7)
 '
 ' §4.1: el diagrama debe coincidir con la infraestructura desplegada. Lo que esta
 ' decidido pero no existe se marca <<previsto>> (borde discontinuo, texto gris) y sus
@@ -59,7 +59,7 @@ cloud "Render" as render {
 
 cloud "Supabase  (region us-west-2)" as supabase {
   database "PostgreSQL 16" as pg {
-    artifact "Esquema public\n(29 tablas, migraciones V1 a V5)" as esquema
+    artifact "Esquema public\n(29 tablas, migraciones V1 a V13)" as esquema
     artifact "Roles de minimo privilegio (docs/bd/db-roles.sql)\ndevnet_migrador: propietario, aplica migraciones\ndevnet_app: la API, solo datos\ndevnet_lectura: analisis, sin credenciales" as roles
   }
   artifact "Respaldo automatico diario\ncon retencion del proveedor" as backup
@@ -75,8 +75,15 @@ cloud "GitHub" as gh {
 }
 
 cloud "Grafana Cloud" <<previsto>> as grafana {
-  component "Prometheus\n(recoleccion remota)" <<previsto>> as prom
-  component "Tableros y alertas" <<previsto>> as dash
+  component "Recoleccion remota contra Render" <<previsto>> as prom
+}
+
+node "Equipo de desarrollo (Docker Compose, docker-compose.yml)" as local {
+  node "Contenedor devnet-api\n(misma imagen del Dockerfile)" as capilocal
+  node "Contenedor devnet-db\nPostgreSQL 16" as dblocal
+  node "Contenedor devnet-prometheus\nscrape cada 15 s + alertas.yml" as promlocal
+  node "Contenedor devnet-grafana\ntablero 'DevNet - API'" as grafanalocal
+  artifact "Frontend React (HU-22)\nnpm run dev, sin desplegar" as frontlocal
 }
 
 ' --- Desplegado
@@ -87,16 +94,23 @@ ghact --> ghcr : publica la imagen\n(solo main)
 ghact --> ws : deploy hook\n(solo main, tras las pruebas)
 pg --> backup : respaldo diario
 
+' --- Implementado solo en local (sprint 3)
+frontlocal --> capilocal : HTTP /api/v1\nBearer + cookie de refresco
+capilocal --> dblocal : JDBC
+promlocal --> capilocal : GET /actuator/prometheus\nBearer (token del scraper)
+grafanalocal --> promlocal : PromQL
+
 ' --- Previsto
 ws ..> storage : HTTPS\nURLs firmadas\n(previsto)
 ws ..> ghauth : HTTPS\nAuthorization Code + PKCE\n(previsto)
 ws ..> ghapi : HTTPS\n(previsto)
-prom ..> ws : GET /actuator/prometheus\n(previsto, sprint 3)
+prom ..> ws : GET /actuator/prometheus\n+ token del scraper (previsto)
 
 note as N_ENTORNOS #E8F5E9
   <b>Entornos (lineamientos 7.3)</b>
 
-  Local        docker-compose: postgres:16 (la API corre con ./mvnw)
+  Local        docker-compose: postgres:16; con --profile app la API en contenedor;
+               con --profile observabilidad ademas Prometheus y Grafana (ADR-010, ADR-011)
   Pruebas      Testcontainers efimero, en cada ejecucion del pipeline
   Integracion  <i>previsto</i>: un segundo servicio de Render desde develop
                y un proyecto Supabase aparte, sin compartir credenciales
@@ -108,12 +122,13 @@ end note
 
 note as N_CONFIG #FFF3E0
   <b>Configuracion inyectada por entorno</b>
-  Las SIETE que exige application-prod.yml, mas las dos de Flyway. Si falta una,
+  Las OCHO que exige application-prod.yml, mas las dos de Flyway. Si falta una,
   la aplicacion NO arranca: es preferible un fallo ruidoso
   al desplegar que un servicio con una credencial por defecto.
 
   DATABASE_URL / DATABASE_USERNAME / DATABASE_PASSWORD
   API_URL
+  METRICAS_TOKEN (sprint 3, ADR-010)
   CORS_ORIGENES
   JWT_CLAVE_PRIVADA / JWT_CLAVE_PUBLICA
 
@@ -130,7 +145,8 @@ note as N_CONFIG #FFF3E0
   sesion para migrar y en modo transaccion se puede perder.
 
   Swagger UI queda HABILITADO tambien en produccion (ADR-007):
-  sin frontend propio, es la unica superficie de interaccion.
+  es la superficie de pruebas del contrato; el frontend (HU-22)
+  corre solo en local y no esta desplegado (ADR-012).
 end note
 
 legend right

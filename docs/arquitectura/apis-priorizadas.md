@@ -140,5 +140,9 @@ El ADR-002 prevé dos controles que el pipeline todavía no aplica:
 - exportar `openapi-v1.<release>.json` como artefacto de cada versión;
 - fallar si un endpoint no declara `@Operation` o sus respuestas de error.
 
-Hoy todos los endpoints los declaran, pero nada lo garantiza. Son candidatos para el
-refinamiento de APIs del sprint 3 (§3.7).
+Al empezar el sprint 3 se auditaron los 32 endpoints: todos declaraban `@Operation`, pero **9 no
+declaraban sus respuestas de error** (`MensajeriaController`, `PerfilController`,
+`TecnologiaController`, y un endpoint de `auth`, `discusiones` y `proyectos`). Quedaron
+declaradas en el refinamiento del sprint 3, ver [sprint-3.md](sprint-3.md). Lo que sigue pendiente
+es que **nada lo garantice en el pipeline**: ni la exportación del contrato por versión ni una regla
+que falle si un endpoint nuevo no declara sus respuestas.

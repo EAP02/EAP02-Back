@@ -43,6 +43,29 @@ spring:
     baseline-on-migrate: false
     validate-on-migrate: true
 
+# Sprint 3 (ADR-010): observabilidad con Prometheus y Grafana.
+management:
+  endpoints:
+    web:
+      exposure:
+        # Solo lo necesario. 'prometheus' lo protege FiltroMetricas con un token propio
+        # (no con el JWT de usuario, que caduca a los 15 min y un scraper no puede renovar).
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: devnet
+    distribution:
+      # Histograma de http.server.requests: es lo que permite calcular el p95 de cada
+      # operacion en Grafana y compararlo con los presupuestos de RNF-02.
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 100ms,200ms,400ms,600ms,900ms,2s
+
 server:
   port: ${PORT:8080}
 
@@ -53,6 +76,11 @@ springdoc:
     path: /swagger-ui.html
 
 devnet:
+  observabilidad:
+    # Token del scraper de Prometheus para /actuator/prometheus. Valor de desarrollo,
+    # desechable como postgres:postgres. En produccion NO tiene valor por defecto
+    # (application-prod.yml): sin METRICAS_TOKEN la aplicacion no arranca.
+    token-metricas: ${METRICAS_TOKEN:metricas-local-desechable}
   api:
     version: v1
     url-servidor: ${API_URL:http://localhost:8080}

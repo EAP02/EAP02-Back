@@ -190,6 +190,11 @@ public class ProyectoController {
                     Para la pagina siguiente, devuelve `cursorSiguiente` tal cual en el
                     parametro `cursor`. No lo interpretes: es opaco a proposito.
                     """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Pagina de proyectos publicados del autor"),
+            @ApiResponse(responseCode = "400", description = "El `autorId` no tiene formato de UUID (**PARAMETRO_INVALIDO**)",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class)))
+    })
     public PaginaKeyset<ListarProyectosDeAutor.ProyectoListado> deAutor(
             @PathVariable UUID autorId,
             @Parameter(description = "Cursor devuelto por la pagina anterior")

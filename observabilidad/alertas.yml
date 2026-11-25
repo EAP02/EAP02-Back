@@ -1,0 +1,56 @@
+# Alertas accionables (lineamiento 4.1, Observabilidad: "dashboards y alertas accionables").
+# Cada una responde a un objetivo de docs/arquitectura/requisitos-no-funcionales.md.
+groups:
+  - name: devnet-api
+    rules:
+
+      - alert: ApiCaida
+        expr: up{job="devnet-api"} == 0
+        for: 1m
+        labels: { severidad: critica }
+        annotations:
+          resumen: "La API no responde al scraper"
+          accion: "Revisar docker compose logs api o el panel de Render. Relaciona con RNF-03."
+
+      - alert: LatenciaP95Alta
+        # RNF-02: el techo de la linea base es 30 s, pero los presupuestos por operacion
+        # son de 200 ms a 2 s. Se alerta por encima de 2 s, el mayor presupuesto.
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_server_requests_seconds_bucket{job="devnet-api", uri!~"/actuator.*"}[5m]))
+          ) > 2
+        for: 5m
+        labels: { severidad: alta }
+        annotations:
+          resumen: "p95 de latencia por encima de 2 s"
+          accion: "Ver el panel 'Latencia p95 por ruta'; si es una consulta, EXPLAIN ANALYZE antes de pensar en cache."
+
+      - alert: ErroresServidor
+        expr: |
+          sum(rate(http_server_requests_seconds_count{job="devnet-api", status=~"5.."}[5m]))
+          /
+          sum(rate(http_server_requests_seconds_count{job="devnet-api"}[5m])) > 0.05
+        for: 5m
+        labels: { severidad: alta }
+        annotations:
+          resumen: "Mas del 5 % de las respuestas son 5xx"
+          accion: "Buscar el traceId en los logs JSON (HU-21) y correlacionar con el despliegue reciente."
+
+      - alert: PicoDeAccesosRechazados
+        # Seguridad: un salto de 401/403 sugiere fuerza bruta o un token mal desplegado.
+        # Los eventos individuales ya quedan en la auditoria (HU-20); esto avisa del volumen.
+        expr: sum(increase(http_server_requests_seconds_count{job="devnet-api", status=~"401|403"}[5m])) > 50
+        for: 2m
+        labels: { severidad: media }
+        annotations:
+          resumen: "Mas de 50 respuestas 401/403 en 5 minutos"
+          accion: "Consultar GET /api/v1/auditoria por INICIO_SESION_FALLIDO y ACCESO_DENEGADO (HU-20)."
+
+      - alert: PoolDeConexionesSaturado
+        # Hikari esta limitado a 5 conexiones por el plan gratuito de Supabase.
+        expr: hikaricp_connections_active{job="devnet-api"} / hikaricp_connections_max{job="devnet-api"} > 0.8
+        for: 5m
+        labels: { severidad: media }
+        annotations:
+          resumen: "Mas del 80 % del pool de conexiones en uso"
+          accion: "Revisar consultas lentas (log_min_duration_statement) antes de subir el maximo."

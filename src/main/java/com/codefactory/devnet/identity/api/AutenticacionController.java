@@ -57,6 +57,13 @@ public class AutenticacionController {
     @PostMapping("/registro")
     @SecurityRequirements
     @Operation(summary = "Registrar una cuenta")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Cuenta creada; su perfil inicial se crea por evento"),
+            @ApiResponse(responseCode = "400", description = "Payload invalido: correo, nombre de usuario o contrasena que no cumplen las reglas",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class))),
+            @ApiResponse(responseCode = "409", description = "**AUTH_CORREO_YA_REGISTRADO** o **AUTH_NOMBRE_USUARIO_YA_REGISTRADO**",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class)))
+    })
     public ResponseEntity<RegistrarUsuario.Resultado> registrar(
             @Valid @RequestBody PeticionRegistro peticion) {
         return ResponseEntity.status(HttpStatus.CREATED)
