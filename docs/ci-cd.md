@@ -139,7 +139,8 @@ Queda fuera a propósito, porque pertenece a otro curso o a otro sprint:
 | Control (§7.2) | Dónde corresponde |
 | --- | --- |
 | SAST, detección de secretos y análisis de imagen | Seguridad, a coordinar con Calidad |
-| Smoke tests posdespliegue y métricas (Prometheus/Grafana) | Arquitectura, sprint 3 |
+| Smoke tests posdespliegue | Pendiente |
+| Métricas (Prometheus/Grafana) | Hecho en el sprint 3, **solo en local** ([ADR-010](adr/ADR-010-observabilidad-prometheus-grafana.md)); el pipeline valida que `docker-compose.yml` sea correcto |
 | Despliegue automático del entorno de integración desde `develop` | Cuando exista el segundo servicio de Render (§7.3) |
 
 Añadir cualquiera de ellos es un job nuevo en el mismo archivo; no hace falta rehacer el

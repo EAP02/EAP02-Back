@@ -1,17 +1,25 @@
 # =============================================================================
-#  DevNet - entorno de desarrollo local
+#  DevNet - entorno local y orquestacion con Docker Compose
 #
-#  Levanta solo la base de datos. La aplicacion se ejecuta desde el IDE o con
-#  mvn spring-boot:run, que es mucho mas rapido de iterar que reconstruir una
-#  imagen en cada cambio.
+#  Sprint 3, "contenedores y orquestacion cuando aplique" (lineamientos 3.7 y 7.3).
+#  Compose es la orquestacion elegida; Kubernetes se descarto con justificacion en el
+#  ADR-011. Tres formas de usarlo, de menos a mas:
 #
-#      docker compose up -d
-#      mvn spring-boot:run
+#    1. Solo la base de datos (el flujo de siempre; la API corre desde el IDE):
+#         docker compose up -d
+#         ./mvnw spring-boot:run
 #
-#  Las credenciales coinciden con los valores por defecto de application.yml
-#  (DATABASE_USERNAME:postgres / DATABASE_PASSWORD:postgres / base devnet), asi
-#  que no hace falta definir ninguna variable de entorno para trabajar en local.
-#  Son credenciales de una base desechable: no tienen valor fuera de tu maquina.
+#    2. Base de datos + API en contenedor (la misma imagen que se despliega en Render):
+#         docker compose --profile app up -d --build
+#
+#    3. Todo, con observabilidad (ADR-010): API + PostgreSQL + Prometheus + Grafana:
+#         docker compose --profile observabilidad up -d --build
+#         API         http://localhost:8080/swagger-ui.html
+#         Prometheus  http://localhost:9090      (Status > Targets: devnet-api en UP)
+#         Grafana     http://localhost:3001      (admin / admin; tablero "DevNet - API")
+#
+#  Las credenciales son de un entorno desechable: no tienen valor fuera de tu maquina.
+#  En produccion los secretos van en las variables de Render, nunca aqui (§7.3).
 # =============================================================================
 
 services:
@@ -42,5 +50,63 @@ services:
       timeout: 3s
       retries: 10
 
+  # La API, construida con el Dockerfile del repositorio: multi-stage, usuario sin
+  # privilegios y HEALTHCHECK propio. Es el artefacto que se publica en ghcr.io.
+  api:
+    profiles: ["app", "observabilidad"]
+    build: .
+    container_name: devnet-api
+    environment:
+      # El Dockerfile fija SPRING_PROFILES_ACTIVE=prod, que exige claves JWT y variables
+      # de produccion. Aqui se usa un perfil sin archivo propio: aplica application.yml,
+      # con claves JWT efimeras (los tokens no sobreviven a un reinicio, aceptable en local).
+      SPRING_PROFILES_ACTIVE: local
+      DATABASE_URL: jdbc:postgresql://postgres:5432/devnet
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: postgres
+      CORS_ORIGENES: http://localhost:5173,http://localhost:3000
+      # El mismo valor que lleva observabilidad/prometheus.yml (ADR-010).
+      METRICAS_TOKEN: ${METRICAS_TOKEN:-metricas-local-desechable}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  prometheus:
+    profiles: ["observabilidad"]
+    image: prom/prometheus:v2.55.1
+    container_name: devnet-prometheus
+    volumes:
+      - ./observabilidad/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observabilidad/alertas.yml:/etc/prometheus/alertas.yml:ro
+      - datos-prometheus:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+
+  grafana:
+    profiles: ["observabilidad"]
+    image: grafana/grafana:11.3.0
+    container_name: devnet-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      # Datasource y tablero se aprovisionan desde el repositorio: nadie configura
+      # Grafana a mano, y el tablero se versiona y se revisa como cualquier codigo.
+      - ./observabilidad/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observabilidad/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - datos-grafana:/var/lib/grafana
+    ports:
+      # 3001 y no 3000: el frontend en desarrollo usa el 3000 o el 5173.
+      - "3001:3000"
+    depends_on:
+      - prometheus
+
 volumes:
   datos-postgres:
+  datos-prometheus:
+  datos-grafana:

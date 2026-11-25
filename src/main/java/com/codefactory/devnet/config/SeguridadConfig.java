@@ -105,12 +105,22 @@ public class SeguridadConfig {
                     .requestMatchers(HttpMethod.GET, "/api/v1/discusiones/**").permitAll()
                     // Comentarios de una publicacion (proyecto o discusion): lectura publica.
                     .requestMatchers(HttpMethod.GET, "/api/v1/publicaciones/*/comentarios", "/api/v1/publicaciones/*/reacciones").permitAll()
-                    // Metricas: nunca abiertas, ni siquiera en integracion.
+                    // Metricas de Prometheus (ADR-010): Spring Security la deja pasar y la
+                    // custodia FiltroMetricas con el token del scraper. El JWT de usuario no
+                    // sirve aqui: caduca a los 15 min y Prometheus no inicia sesion.
+                    .requestMatchers("/actuator/prometheus").permitAll()
+                    // Cualquier otro endpoint de Actuator: nunca abierto, ni en integracion.
                     .requestMatchers("/actuator/**").authenticated()
                     .anyRequest().authenticated())
 
+            // Sprint 3 (aseguramiento con tokens): un token vencido, alterado o mal firmado
+            // tambien se delega al manejador global. Sin esto lo atendia el punto de entrada
+            // por defecto del resource server, que responde 401 sin cuerpo y sin traceId: el
+            // frontend no podia distinguir "sesion vencida" de "nunca inicio sesion".
             .oauth2ResourceServer(oauth -> oauth
-                    .jwt(jwt -> jwt.jwtAuthenticationConverter(convertidor)))
+                    .jwt(jwt -> jwt.jwtAuthenticationConverter(convertidor))
+                    .authenticationEntryPoint((req, res, e) ->
+                            resolvedorExcepciones.resolveException(req, res, null, e)))
 
             // Delega 401 y 403 al manejador global, para que salgan con el cuerpo
             // uniforme de ADR-005 en vez de la pagina por defecto de Spring. Es

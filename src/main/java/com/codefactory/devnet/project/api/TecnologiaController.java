@@ -2,6 +2,11 @@ package com.codefactory.devnet.project.api;
 
 import com.codefactory.devnet.project.application.ListarTecnologias;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import com.codefactory.devnet.shared.api.RespuestaError;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,6 +47,9 @@ public class TecnologiaController {
                     - `id` es el valor que se envia en `tecnologias` al publicar o editar
                       un proyecto.
                     """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Catalogo completo; no pagina porque es un conjunto curado y acotado")
+    })
     public List<ListarTecnologias.TecnologiaCatalogo> listar() {
         return listar.ejecutar();
     }

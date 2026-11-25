@@ -13,6 +13,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.FieldError;
@@ -120,7 +121,14 @@ public class ManejadorGlobalErrores {
     public ResponseEntity<RespuestaError> noAutenticado(AuthenticationException ex,
                                                         HttpServletRequest req) {
         log.warn("Autenticacion fallida en {} {}", req.getMethod(), req.getRequestURI());
-        return construir(CodigoErrorComun.AUTH_REQUERIDA, null, List.of(), req);
+        // ADR-005: sin credencial es AUTH_REQUERIDA (hay que iniciar sesion); con una
+        // credencial presente pero vencida, alterada o mal firmada es AUTH_TOKEN_INVALIDO
+        // (hay que renovarla con /auth/refresco). El cliente decide distinto en cada caso.
+        // El mensaje de la excepcion nunca llega al cuerpo: no se revela por que fallo.
+        CodigoError codigo = ex instanceof InvalidBearerTokenException
+                ? CodigoErrorComun.AUTH_TOKEN_INVALIDO
+                : CodigoErrorComun.AUTH_REQUERIDA;
+        return construir(codigo, null, List.of(), req);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

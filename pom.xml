@@ -97,6 +97,15 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+
+        <!-- Sprint 3 (ADR-010): formato de exposicion de Prometheus para las metricas de
+             Micrometer. El starter de Actuator ya trae Micrometer; este registro es lo que
+             publica /actuator/prometheus. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+            <scope>runtime</scope>
+        </dependency>
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>

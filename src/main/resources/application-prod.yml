@@ -57,6 +57,12 @@ logging:
     org.hibernate.SQL: WARN
 
 devnet:
+  observabilidad:
+    # OPCIONAL en produccion. Vacio a proposito (no hereda el valor de desarrollo de
+    # application.yml): con el token vacio FiltroMetricas FALLA CERRADO y rechaza toda
+    # peticion a /actuator/prometheus, asi que no hay un endpoint de metricas con un token
+    # conocido. Para recolectar produccion basta definir METRICAS_TOKEN en Render.
+    token-metricas: ${METRICAS_TOKEN:}
   api:
     url-servidor: ${API_URL}
   seguridad:

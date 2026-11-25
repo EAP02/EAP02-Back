@@ -19,6 +19,9 @@ el anterior queda marcado como reemplazado. El historial es el valor del registr
 | [ADR-007](ADR-007-swagger-ui-habilitado-en-produccion.md) | Swagger UI queda habilitado también en producción | Aceptada | 2026-09-19 |
 | [ADR-008](ADR-008-modulo-administration.md) | Las lecturas administrativas viven en un módulo `administration` | Aceptada | 2026-11-14 |
 | [ADR-009](ADR-009-reporte-con-consolidacion-bajo-demanda.md) | El reporte de actividad consolida las métricas bajo demanda | Aceptada | 2026-11-14 |
+| [ADR-010](ADR-010-observabilidad-prometheus-grafana.md) | Observabilidad con Micrometer, Prometheus y Grafana, y un token propio para el scraper | Aceptada | 2026-11-24 |
+| [ADR-011](ADR-011-orquestacion-docker-compose-sin-kubernetes.md) | Docker Compose como orquestación; Kubernetes descartado por ahora | Aceptada | 2026-11-24 |
+| [ADR-012](ADR-012-frontend-react-local-y-codigo-en-discusiones.md) | Frontend React local como cliente de la API, y código insertable en discusiones | Propuesta (por confirmar) | 2026-11-24 |
 
 ## Estados posibles
 
