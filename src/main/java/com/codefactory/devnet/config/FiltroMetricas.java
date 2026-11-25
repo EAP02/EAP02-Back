@@ -17,7 +17,7 @@ import java.security.MessageDigest;
  *
  * <p>Prometheus no puede usar el JWT de un usuario: caduca a los 15 minutos y un scraper
  * no inicia sesion. Tampoco se deja el endpoint abierto: las metricas revelan rutas,
- * volumenes y errores. Por eso este filtro exige {@code Authorization: Bearer <token>}
+ * volumenes y errores. Por eso este filtro exige {@code Authorization: Metricas <token>}
  * con un secreto compartido que vive en {@code METRICAS_TOKEN} (lineamiento 7.3:
  * secretos fuera del codigo).</p>
  *
@@ -29,7 +29,13 @@ import java.security.MessageDigest;
 public class FiltroMetricas extends OncePerRequestFilter {
 
     static final String RUTA = "/actuator/prometheus";
-    private static final String ESQUEMA = "Bearer ";
+    /**
+     * Esquema propio, no {@code Bearer}: el resource server de Spring Security intenta validar
+     * como JWT de usuario cualquier cabecera {@code Bearer}, y como el token del scraper no es
+     * un JWT rechaza la peticion con 401 antes de que llegue este filtro, aunque la ruta sea
+     * publica. Un esquema desconocido lo ignora.
+     */
+    private static final String ESQUEMA = "Metricas ";
 
     private final byte[] esperado;
 
@@ -50,7 +56,7 @@ public class FiltroMetricas extends OncePerRequestFilter {
             cadena.doFilter(request, response);
             return;
         }
-        response.setHeader("WWW-Authenticate", "Bearer");
+        response.setHeader("WWW-Authenticate", "Metricas");
         response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
     }
 

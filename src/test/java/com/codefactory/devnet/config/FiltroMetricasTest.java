@@ -35,7 +35,7 @@ class FiltroMetricasTest {
     @Test
     @DisplayName("deja pasar la peticion con el token correcto")
     void token_correcto() throws Exception {
-        var respuesta = ejecutar(new FiltroMetricas(TOKEN), "/actuator/prometheus", "Bearer " + TOKEN);
+        var respuesta = ejecutar(new FiltroMetricas(TOKEN), "/actuator/prometheus", "Metricas " + TOKEN);
 
         assertThat(respuesta.getStatus()).isEqualTo(HttpServletResponse.SC_OK);
     }
@@ -46,29 +46,29 @@ class FiltroMetricasTest {
         var respuesta = ejecutar(new FiltroMetricas(TOKEN), "/actuator/prometheus", null);
 
         assertThat(respuesta.getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);
-        assertThat(respuesta.getHeader("WWW-Authenticate")).isEqualTo("Bearer");
+        assertThat(respuesta.getHeader("WWW-Authenticate")).isEqualTo("Metricas");
     }
 
     @Test
     @DisplayName("401 con un token distinto")
     void token_incorrecto() throws Exception {
-        var respuesta = ejecutar(new FiltroMetricas(TOKEN), "/actuator/prometheus", "Bearer otro-token");
+        var respuesta = ejecutar(new FiltroMetricas(TOKEN), "/actuator/prometheus", "Metricas otro-token");
 
         assertThat(respuesta.getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);
     }
 
     @Test
-    @DisplayName("401 con un esquema que no es Bearer")
+    @DisplayName("401 con otro esquema, incluido Bearer (lo reservan los JWT de usuario)")
     void esquema_incorrecto() throws Exception {
-        var respuesta = ejecutar(new FiltroMetricas(TOKEN), "/actuator/prometheus", "Basic " + TOKEN);
+        var respuesta = ejecutar(new FiltroMetricas(TOKEN), "/actuator/prometheus", "Bearer " + TOKEN);
 
         assertThat(respuesta.getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);
     }
 
     @Test
-    @DisplayName("falla cerrado: con el token configurado vacio rechaza incluso un Bearer vacio")
+    @DisplayName("falla cerrado: con el token configurado vacio rechaza incluso un token vacio")
     void token_configurado_vacio() throws Exception {
-        var respuesta = ejecutar(new FiltroMetricas(""), "/actuator/prometheus", "Bearer ");
+        var respuesta = ejecutar(new FiltroMetricas(""), "/actuator/prometheus", "Metricas ");
 
         assertThat(respuesta.getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);
     }

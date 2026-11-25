@@ -42,7 +42,7 @@ flowchart LR
         P["Prometheus<br/>scrape cada 15 s"]
         G["Grafana<br/>tablero DevNet - API"]
     end
-    P -- "GET /actuator/prometheus<br/>Bearer (token del scraper)" --> A
+    P -- "GET /actuator/prometheus<br/>Authorization: Metricas (token del scraper)" --> A
     G -- PromQL --> P
     GH["GitHub Actions"] -- "imagen en ghcr.io + deploy hook" --> A
 ```

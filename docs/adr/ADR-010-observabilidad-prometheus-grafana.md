@@ -45,9 +45,12 @@ Es lo más simple, y no funciona: el scraper no tiene cómo obtener ni renovar e
    `prometheus` están expuestos.
 2. El histograma de `http.server.requests` está activo, para calcular el **p95 por ruta** y
    compararlo con los presupuestos de RNF-02.
-3. El endpoint exige `Authorization: Bearer <METRICAS_TOKEN>`. Lo verifica `FiltroMetricas`, con
+3. El endpoint exige `Authorization: Metricas <METRICAS_TOKEN>`. Lo verifica `FiltroMetricas`, con
    comparación en tiempo constante y **fallando cerrado** si el token configurado está vacío.
-   Cualquier otro endpoint de Actuator sigue exigiendo un JWT de usuario.
+   Cualquier otro endpoint de Actuator sigue exigiendo un JWT de usuario. **El esquema es
+   `Metricas` y no `Bearer`** a propósito: el resource server de Spring Security intenta validar como
+   JWT toda cabecera `Bearer`, y el token del scraper no lo es, así que lo rechazaba con 401 antes de
+   que llegara el filtro (se descubrió al levantar el stack con Docker Compose).
 4. En producción `METRICAS_TOKEN` **no tiene valor por defecto**: sin él la aplicación no arranca,
    como ocurre con las claves JWT.
 5. Prometheus y Grafana corren con `docker compose --profile observabilidad up`. El tablero
@@ -74,7 +77,7 @@ Es lo más simple, y no funciona: el scraper no tiene cómo obtener ni renovar e
 
 ## Verificación
 
-- `FiltroMetricasTest`: sin token, token distinto, esquema distinto y token vacío → 401.
+- `FiltroMetricasTest`: sin token, token distinto, esquema `Bearer` y token vacío → 401.
 - `docker compose --profile observabilidad up -d` y, en Prometheus → Status → Targets,
   `devnet-api` en **UP**.
 - En Grafana, el tablero «DevNet - API» muestra datos tras unas peticiones a Swagger.

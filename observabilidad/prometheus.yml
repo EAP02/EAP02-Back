@@ -12,9 +12,10 @@ scrape_configs:
     metrics_path: /actuator/prometheus
     static_configs:
       - targets: ["api:8080"]
-    # El endpoint exige el token del scraper (FiltroMetricas), no un JWT de usuario.
+    # El endpoint exige el token del scraper (FiltroMetricas), no un JWT de usuario. Usa el
+    # esquema 'Metricas' y no 'Bearer': Spring Security trata todo Bearer como un JWT de usuario.
     # Este valor es el de desarrollo, desechable. Contra Render o un entorno real, el
     # token va en un archivo y se referencia con 'credentials_file', nunca inline.
     authorization:
-      type: Bearer
+      type: Metricas
       credentials: metricas-local-desechable

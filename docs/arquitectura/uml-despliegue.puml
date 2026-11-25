@@ -97,7 +97,7 @@ pg --> backup : respaldo diario
 ' --- Implementado solo en local (sprint 3)
 frontlocal --> capilocal : HTTP /api/v1\nBearer + cookie de refresco
 capilocal --> dblocal : JDBC
-promlocal --> capilocal : GET /actuator/prometheus\nBearer (token del scraper)
+promlocal --> capilocal : GET /actuator/prometheus\nAuthorization: Metricas (token del scraper)
 grafanalocal --> promlocal : PromQL
 
 ' --- Previsto
