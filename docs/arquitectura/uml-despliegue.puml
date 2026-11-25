@@ -122,13 +122,12 @@ end note
 
 note as N_CONFIG #FFF3E0
   <b>Configuracion inyectada por entorno</b>
-  Las OCHO que exige application-prod.yml, mas las dos de Flyway. Si falta una,
+  Las SIETE que exige application-prod.yml, mas las dos de Flyway. Si falta una,
   la aplicacion NO arranca: es preferible un fallo ruidoso
   al desplegar que un servicio con una credencial por defecto.
 
   DATABASE_URL / DATABASE_USERNAME / DATABASE_PASSWORD
   API_URL
-  METRICAS_TOKEN (sprint 3, ADR-010)
   CORS_ORIGENES
   JWT_CLAVE_PRIVADA / JWT_CLAVE_PUBLICA
 
@@ -139,6 +138,9 @@ note as N_CONFIG #FFF3E0
 
   SPRING_PROFILES_ACTIVE=prod ya viene en el Dockerfile.
   PORT lo inyecta Render y application.yml lo respeta.
+
+  METRICAS_TOKEN (sprint 3, ADR-010): OPCIONAL en produccion. Sin
+  definirla, /actuator/prometheus rechaza toda peticion (falla cerrado).
 
   DATABASE_URL usa el session pooler de Supabase (puerto 5432),
   no el de transaccion (6543): Flyway toma un advisory lock de

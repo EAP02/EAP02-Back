@@ -51,8 +51,11 @@ Es lo más simple, y no funciona: el scraper no tiene cómo obtener ni renovar e
    `Metricas` y no `Bearer`** a propósito: el resource server de Spring Security intenta validar como
    JWT toda cabecera `Bearer`, y el token del scraper no lo es, así que lo rechazaba con 401 antes de
    que llegara el filtro (se descubrió al levantar el stack con Docker Compose).
-4. En producción `METRICAS_TOKEN` **no tiene valor por defecto**: sin él la aplicación no arranca,
-   como ocurre con las claves JWT.
+4. En producción `METRICAS_TOKEN` es **opcional**: sin definirlo, el token queda vacío y
+   `FiltroMetricas` rechaza toda petición a `/actuator/prometheus`. Se prefirió esto a hacerlo
+   obligatorio (como las claves JWT) para no impedir el arranque en Render, donde la variable la
+   administra otro integrante del equipo. Definir `METRICAS_TOKEN` es lo único que falta para
+   recolectar producción.
 5. Prometheus y Grafana corren con `docker compose --profile observabilidad up`. El tablero
    «DevNet - API» y las alertas viven en `observabilidad/` y se aprovisionan solos.
 
@@ -66,9 +69,10 @@ Es lo más simple, y no funciona: el scraper no tiene cómo obtener ni renovar e
 - Todo es código revisable en un pull request.
 
 ### Negativas y cómo se mitigan
-- **Producción no se está recolectando todavía.** Prometheus corre en local. Mitigación: el
-  endpoint y el token ya existen en la imagen desplegada; conectar Grafana Cloud es solo
-  configuración (opción B).
+- **Producción no se está recolectando todavía.** Prometheus corre en local, y en Render el
+  endpoint está cerrado hasta que se defina `METRICAS_TOKEN`. Mitigación: el código ya está
+  desplegado; recolectar producción es solo configuración (definir la variable y conectar
+  Grafana Cloud, opción B).
 - **El endpoint de métricas pasa por `permitAll` en la cadena de Spring Security** y lo custodia
   un filtro aparte. Es una excepción a la regla de «todo Actuator autenticado» y se acepta porque
   el filtro es pequeño, está probado y falla cerrado.

@@ -78,8 +78,9 @@ springdoc:
 devnet:
   observabilidad:
     # Token del scraper de Prometheus para /actuator/prometheus. Valor de desarrollo,
-    # desechable como postgres:postgres. En produccion NO tiene valor por defecto
-    # (application-prod.yml): sin METRICAS_TOKEN la aplicacion no arranca.
+    # desechable como postgres:postgres. En produccion el valor por defecto es VACIO
+    # (application-prod.yml) y el filtro falla cerrado: nadie lee las metricas hasta que
+    # se defina METRICAS_TOKEN.
     token-metricas: ${METRICAS_TOKEN:metricas-local-desechable}
   api:
     version: v1
