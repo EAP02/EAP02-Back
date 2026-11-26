@@ -26,8 +26,10 @@
 #    desplegar   Solo en push a main, despues de imagen. Dispara el deploy hook
 #                de Render: produccion solo recibe codigo que paso el pipeline.
 #
-#  Lo que NO hace todavia, a proposito (es del sprint 3 o de otro curso):
-#  metricas con Prometheus/Grafana y orquestacion de contenedores.
+#    contenedores  Sprint 3. Valida que docker-compose.yml (con el perfil de
+#                observabilidad) sea correcto. No levanta el stack: eso es local.
+#
+#  Lo que NO hace todavia, a proposito: smoke tests posdespliegue.
 # =============================================================================
 
 name: CI/CD
@@ -159,6 +161,21 @@ jobs:
             exit 1
           fi
           ./mvnw -B sonar:sonar -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300
+
+  contenedores:
+    name: Validar docker-compose
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Obtener el codigo
+        uses: actions/checkout@v4
+
+      # Falla si el archivo tiene un error de sintaxis o referencia algo inexistente.
+      # METRICAS_TOKEN se define solo para que la interpolacion no avise en CI.
+      - name: Validar el archivo compose
+        env:
+          METRICAS_TOKEN: ci
+        run: docker compose --profile observabilidad config --quiet
 
   imagen:
     name: Publicar imagen Docker

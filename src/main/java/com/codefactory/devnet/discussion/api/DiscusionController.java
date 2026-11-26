@@ -123,6 +123,9 @@ public class DiscusionController {
                     Para la pagina siguiente, devuelve `cursorSiguiente` tal cual en el
                     parametro `cursor`.
                     """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Pagina de discusiones, o estado vacio con `mensaje` orientador")
+    })
     public ListarDiscusiones.Listado listar(
             @Parameter(description = "Slug de la tecnologia del catalogo", example = "java")
             @RequestParam(required = false) String tecnologia,

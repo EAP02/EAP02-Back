@@ -8,14 +8,15 @@ todo lo que hay aquí están en [docs/adr/](../adr/); este directorio contiene l
 | Archivo | Vista | Entregable |
 |---|---|---|
 | [c4-01-contexto.puml](c4-01-contexto.puml) | C4 nivel 1 — contexto del sistema | Sprint 1, revisado en Sprint 2 |
-| [c4-02-contenedores.puml](c4-02-contenedores.puml) | C4 nivel 2 — contenedores | Sprint 1, revisado en Sprint 2 |
+| [c4-02-contenedores.puml](c4-02-contenedores.puml) | C4 nivel 2 — contenedores | Sprint 1, revisado en Sprints 2 y 3 |
 | [c4-03-componentes-api.puml](c4-03-componentes-api.puml) | C4 nivel 3 — componentes de la API | Sprint 1 |
 | [uml-paquetes.puml](uml-paquetes.puml) | Paquetes y componentes **con interfaces** | Sprint 1 (literal) |
-| [uml-despliegue.puml](uml-despliegue.puml) | Despliegue | Sprint 1, refinado en Sprint 2 |
+| [uml-despliegue.puml](uml-despliegue.puml) | Despliegue | Sprint 1, refinado en Sprints 2 y 3 |
 | [../ci-cd.md](../ci-cd.md) | Pipeline CI/CD con GitHub Actions | Sprint 2 |
 | [apis-priorizadas.md](apis-priorizadas.md) | Inventario de endpoints, criterio de prioridad y siguientes APIs | Sprint 2 |
 | [proceso-principal.md](proceso-principal.md) | Máquinas de estado y reglas de negocio | Sprint 1 |
 | [requisitos-no-funcionales.md](requisitos-no-funcionales.md) | Atributos de calidad con objetivos medibles | Sprint 1 |
+| [sprint-3.md](sprint-3.md) | **Entregables del sprint 3**: refinamiento de APIs, contenedores, observabilidad, pruebas de integración y tokens | Sprint 3 |
 
 ## Vista lógica en capas
 
@@ -25,7 +26,7 @@ módulo**, no como paquetes horizontales del sistema completo (ver
 
 | Capa de §4.2 | Dónde está en DevNet | Contenido |
 |---|---|---|
-| Presentación | No aplica | El perfil avanzado no contempla frontend. Swagger UI cumple la función de superficie de interacción |
+| Presentación | Frontend React **local** (HU-22) | Cliente de la API; no está desplegado ([ADR-012](../adr/ADR-012-frontend-react-local-y-codigo-en-discusiones.md)). Swagger UI sigue siendo la superficie de pruebas del contrato |
 | Aplicación | `<modulo>.application` | Casos de uso, orquestación, límites transaccionales |
 | Dominio | `<modulo>.domain` | Entidades, objetos de valor, reglas, políticas ABAC, puertos. Sin Spring ni JPA |
 | Infraestructura | `<modulo>.infrastructure` | Adaptadores JPA y JDBC hacia PostgreSQL |
@@ -41,13 +42,13 @@ Correspondencia con la tabla de §4.1 de los lineamientos:
 
 | Componente de §4.1 | En DevNet |
 |---|---|
-| Cliente web | No aplica (frontend N/A en el perfil avanzado) |
+| Cliente web | Frontend React en local (HU-22, ADR-012); Swagger UI como superficie de pruebas |
 | Gestión de identidad y acceso | Módulo `identity`: registro e inicio de sesión locales, JWT RS256 y refresco rotatorio. GitHub como IdP federado: *previsto* (ADR-004) |
 | API Gateway | No aplica. Con un solo contenedor, un gateway añadiría un salto sin aportar enrutamiento ni balanceo real |
 | Backend | Cuatro módulos de negocio —`identity`, `profile`, `project`, `discussion`— más el kernel `shared` y el cableado de arranque en `config` |
 | Base de datos transaccional | PostgreSQL 16 en Supabase |
 | Repositorio de recursos | *Previsto*: Supabase Storage. Hoy el avatar es una URL externa y no se almacenan binarios |
-| Observabilidad | Actuator (`/actuator/health`, usado por Render y el `HEALTHCHECK` del Dockerfile); logs en JSON con `traceId`, `ruta`, `metodo`, `estadoHttp` y `duracionMs` como campos (HU-21); el mismo `traceId` en la cabecera `X-Trace-Id` y en cada error (ADR-005). Prometheus/Grafana: *previsto*, sprint 3 |
+| Observabilidad | Actuator (`/actuator/health`, usado por Render y el `HEALTHCHECK` del Dockerfile); logs en JSON con `traceId`, `ruta`, `metodo`, `estadoHttp` y `duracionMs` como campos (HU-21); el mismo `traceId` en la cabecera `X-Trace-Id` y en cada error (ADR-005). Prometheus y Grafana con Docker Compose (`--profile observabilidad`, [ADR-010](../adr/ADR-010-observabilidad-prometheus-grafana.md)): métricas de Micrometer en `/actuator/prometheus` protegidas con el token del scraper. Corren **en local**; recolectar Render queda *previsto* |
 | Plataforma DevOps | GitHub Actions: pruebas en cada PR, imagen en ghcr.io y despliegue en Render desde `main` ([ci-cd.md](../ci-cd.md)); backlog y métricas en Azure DevOps |
 
 La no adopción de API Gateway se documenta aquí a propósito: §4.1 lo condiciona a "cuando
@@ -68,9 +69,9 @@ y la infraestructura desplegada, así que cada caja de `c4-03-componentes-api.pu
 `uml-paquetes.puml` existe como paquete, y cada flecha entre módulos es un `import`
 verificable.
 
-El ADR-001 preveía nueve módulos. Hay cinco de negocio —`identity`, `profile`,
-`project` y, desde el sprint 2, `discussion` (HU-11) e `interaction` (HU-13 y HU-14)— más el
-kernel `shared` y el cableado `config`. El seguimiento entre miembros (HU-15) vive dentro de
+El ADR-001 preveía nueve módulos. Hay siete de negocio —`identity`, `profile`,
+`project`, `discussion` (HU-11), `interaction` (HU-13 y HU-14), `messaging` y, desde el sprint 3,
+`administration` (HU-19 y HU-20, ADR-008)— más el kernel `shared` y el cableado `config`. El seguimiento entre miembros (HU-15) vive dentro de
 `profile`. Quedaron fuera `messaging`, `moderation` y `analytics`; lo único de moderación
 que existe —ocultar una publicación con motivo obligatorio— vive dentro de `project`.
 
@@ -87,7 +88,8 @@ Los diagramas de contexto, contenedores y despliegue distinguen dos cosas:
   por el cronograma de §3.7— pero no implementado.
 
 Hoy son previstos: GitHub como proveedor de identidad y fuente de metadatos de
-repositorios, Supabase Storage, Prometheus/Grafana y el entorno de integración. Los roles
+repositorios, Supabase Storage, la recolección de métricas de **producción** (Prometheus y
+Grafana ya corren en local) y el entorno de integración. Los roles
 de base de datos de [`db-roles.sql`](../bd/db-roles.sql) dejaron de serlo el 14 de octubre
 de 2026, al aplicarse en producción. Se dibujan en lugar de borrarse
 porque son el rumbo acordado; se marcan porque §4.1 exige que el diagrama coincida con lo

@@ -6,6 +6,10 @@ import com.codefactory.devnet.profile.application.PerfilDetalle;
 import com.codefactory.devnet.profile.domain.NivelTecnologia;
 import com.codefactory.devnet.profile.domain.TecnologiaDeclarada;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import com.codefactory.devnet.shared.api.RespuestaError;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
@@ -40,6 +44,15 @@ public class PerfilController {
     @SecurityRequirements
     @Operation(summary = "Ver un perfil publico",
             description = "Lectura abierta: el perfil de un desarrollador es su carta de presentacion.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Perfil publico con sus proyectos"),
+            @ApiResponse(responseCode = "400",
+                    description = "El `id` no tiene formato de UUID (**PARAMETRO_INVALIDO**)",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class))),
+            @ApiResponse(responseCode = "404",
+                    description = "El perfil no existe o no esta disponible",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class)))
+    })
     public PerfilPublicoConsulta.PerfilPublico obtener(@PathVariable UUID id) {
         return consulta.obtener(id);
     }
@@ -56,6 +69,19 @@ public class PerfilController {
                     y cada una exige nivel. Un identificador que no exista o que no
                     este aprobado devuelve **422**.
                     """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Perfil actualizado"),
+            @ApiResponse(responseCode = "400",
+                    description = "Payload invalido: nombre, biografia o tecnologias con formato incorrecto",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class))),
+            @ApiResponse(responseCode = "401", ref = "#/components/responses/NoAutenticado"),
+            @ApiResponse(responseCode = "403",
+                    description = "**PERFIL_AJENO**: el `id` de la ruta no es el del token",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class))),
+            @ApiResponse(responseCode = "422",
+                    description = "Una tecnologia no existe en el catalogo o no esta aprobada",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class)))
+    })
     public PerfilDetalle editar(@PathVariable UUID id, @Valid @RequestBody PeticionEditar peticion) {
         return editarPerfil.ejecutar(id, peticion.nombre(), peticion.biografia(),
                 peticion.aDominio(), peticion.githubUrl(), peticion.linkedinUrl());
@@ -65,6 +91,16 @@ public class PerfilController {
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Cambiar el avatar propio",
             description = "Misma regla de propiedad que la edicion del perfil.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Avatar actualizado"),
+            @ApiResponse(responseCode = "400",
+                    description = "URL de avatar invalida",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class))),
+            @ApiResponse(responseCode = "401", ref = "#/components/responses/NoAutenticado"),
+            @ApiResponse(responseCode = "403",
+                    description = "**PERFIL_AJENO**: el `id` de la ruta no es el del token",
+                    content = @Content(schema = @Schema(implementation = RespuestaError.class)))
+    })
     public PerfilDetalle editarAvatar(@PathVariable UUID id, @Valid @RequestBody PeticionAvatar peticion) {
         return editarAvatar.ejecutar(id, peticion.avatarUrl());
     }
